@@ -55,7 +55,7 @@ npm install
 3. **Configurar base de datos:**
    - Crear base de datos PostgreSQL llamada `stress_db`
    - Usuario: `postgres`
-   - Contraseña: `admin123`
+   - Contraseña: `His-Password`
    - Puerto: `5432`
 
 4. **Ejecutar el servidor:**
@@ -127,7 +127,7 @@ npm start
 DB_USER=postgres
 DB_HOST=localhost
 DB_NAME=stress_db
-DB_PASSWORD=admin123
+DB_PASSWORD=His-Password
 DB_PORT=5432
 PORT=3000
 ```
@@ -138,7 +138,7 @@ const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
   database: 'stress_db',
-  password: 'admin123',
+  password: 'His-Password',
   port: 5432,
 });
 ```
