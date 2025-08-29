@@ -1,40 +1,43 @@
-# 🧠 Backend - API de Dataset de Estrés Estudiantil
+# 🎯 Tablero de Estrategia para el Bienestar Universitario
 
-## 📋 Descripción
+## 📋 Descripción General
 
-Backend desarrollado en Node.js para gestionar datasets de estrés estudiantil. La API permite cargar archivos CSV, procesar datos y almacenarlos en PostgreSQL, con documentación completa en Swagger.
+El **Tablero de Estrategia para el Bienestar Universitario** es un sistema de soporte a la decisión (DSS) diseñado para ayudar a la administración universitaria a tomar decisiones informadas sobre la asignación de recursos para programas de bienestar y apoyo estudiantil. El sistema transforma los datos de encuestas en conocimiento útil y práctico, facilitando acciones concretas para mejorar la experiencia y salud mental de los estudiantes.
 
-## 🚀 Características
+## 🚀 Funcionalidades Clave
 
-- **📤 Carga de archivos CSV** con detección automática de formato
-- **🗄️ Base de datos PostgreSQL** para almacenamiento robusto
-- **🔍 Documentación Swagger** completa e interactiva
-- **🔄 API RESTful** con endpoints bien definidos
-- **⚡ Procesamiento eficiente** de datasets grandes
-- **🛡️ Manejo de errores** robusto con transacciones
+- **Análisis Comparativo:** Permite comparar los puntajes de estrés de la universidad con datos históricos o de otras instituciones, midiendo la efectividad de los programas de bienestar existentes.
+- **Exploración de Factores Clave:** Visualizaciones interactivas (gráficos de barras, burbujas, etc.) para identificar los factores que más afectan a los estudiantes, como "problemas de sueño" o "preocupación por la futura carrera".
+- **Análisis "What-If":** Simulación del impacto de diferentes inversiones en programas de bienestar (por ejemplo, ver cómo una mayor inversión en tutoría académica podría reducir el estrés).
+- **Toma de Decisiones Basada en Evidencia:** El sistema guía a los líderes universitarios para redirigir recursos hacia los programas más efectivos, basándose en los datos y análisis presentados.
 
-## 🏗️ Arquitectura
+## 🏗️ Arquitectura del Sistema
 
-```
-├── server.js              # Servidor principal
-├── package.json           # Dependencias del proyecto
-├── upload.html            # Interfaz web básica
-├── .gitignore            # Archivos a excluir
-└── README.md             # Este archivo
-```
+El sistema está compuesto por tres subsistemas principales:
+
+1. **Subsistema de Datos (Data Subsystem):**  
+   - Gestión y almacenamiento de datos en PostgreSQL.
+   - Carga y procesamiento de archivos CSV con estructura definida.
+2. **Subsistema de Modelos (Model Subsystem):**  
+   - Procesamiento y análisis de datos para generar estadísticas y simulaciones "what-if".
+   - Lógica para comparar factores y calcular impactos hipotéticos.
+3. **Subsistema de Interfaz de Usuario (User Interface Subsystem):**  
+   - Tablero visual e interactivo para la exploración y análisis de datos.
+   - Visualizaciones claras y usables, aplicando principios de ergonomía y usabilidad.
 
 ## 🛠️ Tecnologías Utilizadas
 
-- **Node.js** - Runtime de JavaScript
-- **Express.js** - Framework web
-- **PostgreSQL** - Base de datos relacional
-- **Swagger** - Documentación de API
-- **Multer** - Manejo de archivos
-- **csv-parser** - Procesamiento de CSV
+- **Node.js** y **Express.js** (Backend/API RESTful)
+- **PostgreSQL** (Base de datos relacional)
+- **Swagger** (Documentación interactiva de la API)
+- **Multer** y **csv-parser** (Carga y procesamiento de archivos CSV)
+- **Vite** y **React** (Frontend moderno y rápido)
+- **Herramientas de versionamiento:** Git (para código y scripts de base de datos)
 
-## 📦 Instalación
+## 📦 Instalación y Puesta en Marcha
 
 ### Prerrequisitos
+
 - Node.js (v14 o superior)
 - PostgreSQL
 - npm o yarn
@@ -42,202 +45,59 @@ Backend desarrollado en Node.js para gestionar datasets de estrés estudiantil. 
 ### Pasos de instalación
 
 1. **Clonar el repositorio:**
-```bash
-git clone [URL_DEL_REPOSITORIO]
-cd [NOMBRE_DEL_REPO]/backend
-```
+   ```bash
+   git clone [URL_DEL_REPOSITORIO]
+   cd [NOMBRE_DEL_REPO]
+   ```
 
-2. **Instalar dependencias:**
-```bash
-npm install
-```
+2. **Backend:**
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
 
-3. **Configurar base de datos:**
+3. **Frontend:**
+   ```bash
+   cd ../frontend
+   npm install
+   npm run dev
+   ```
+
+4. **Configurar base de datos:**
    - Crear base de datos PostgreSQL llamada `stress_db`
    - Usuario: `postgres`
    - Contraseña: `His-Password`
    - Puerto: `5432`
 
-4. **Ejecutar el servidor:**
-```bash
-npm start
-```
-
 ## 🌐 Endpoints de la API
 
-### 📤 POST `/api/upload-dataset`
-**Cargar y procesar archivo CSV**
-- **Content-Type:** `multipart/form-data`
-- **Parámetro:** `file` (archivo CSV)
-- **Soporta:** `Stress_Dataset.csv` y `StressLevelDataset.csv`
+- **POST `/api/upload-dataset`**: Cargar y procesar archivo CSV.
+- **GET `/api/stats`**: Obtener estadísticas de la base de datos.
+- **GET `/api/table-structure`**: Ver estructura de las tablas.
+- **DELETE `/api/clear-data`**: Limpiar todos los datos.
+- **GET `/api-docs`**: Documentación Swagger interactiva.
 
-### 📊 GET `/api/stats`
-**Obtener estadísticas de la base de datos**
-- **Respuesta:** Número total de registros y mensaje informativo
+La API está documentada con Swagger y permite cargar archivos con la estructura proporcionada.
 
-### 🔍 GET `/api/table-structure`
-**Ver estructura de las tablas**
-- **Respuesta:** Esquema completo de la tabla `survey_responses`
+## 🧩 Requerimientos Adicionales
 
-### 🗑️ DELETE `/api/clear-data`
-**Limpiar todos los datos**
-- **⚠️ ADVERTENCIA:** Acción irreversible
-
-### 📚 GET `/api-docs`
-**Documentación Swagger**
-- **Interfaz interactiva** para probar todos los endpoints
+- El sistema es visualmente claro, fácil de usar y aplica conceptos de ergonomía y usabilidad.
+- Se utiliza una metodología básica de desarrollo de sistemas de información, con planificación y seguimiento documentados.
+- Se emplean herramientas de versionamiento para el código y scripts de base de datos.
+- Se siguen estándares de codificación adecuados.
+- No se requiere inicio de sesión, autenticación de usuarios, roles ni perfiles.
 
 ## 📁 Estructura de Datos
 
-### Tabla: `survey_responses`
-```sql
-- gender (varchar)
-- age (integer)
-- stress_experience (varchar)
-- palpitations (varchar)
-- anxiety (varchar)
-- sleep_problems (varchar)
-- anxiety_duplicate (varchar)
-- headaches (varchar)
-- irritability (varchar)
-- concentration_issues (varchar)
-- sadness (varchar)
-- illness (varchar)
-- loneliness (varchar)
-- academic_overload (varchar)
-- competition (varchar)
-- relationship_stress (varchar)
-- professor_difficulty (varchar)
-- work_environment (varchar)
-- leisure_time (varchar)
-- home_environment (varchar)
-- low_confidence_performance (varchar)
-- low_confidence_subjects (varchar)
-- academic_conflict (varchar)
-- class_attendance (varchar)
-- weight_change (varchar)
-- stress_type (varchar)
-- id (serial, primary key)
-```
-
-## 🔧 Configuración
-
-### Variables de entorno (opcional)
-```bash
-DB_USER=postgres
-DB_HOST=localhost
-DB_NAME=stress_db
-DB_PASSWORD=His-Password
-DB_PORT=5432
-PORT=3000
-```
-
-### Configuración de base de datos
-```javascript
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'stress_db',
-  password: 'His-Password',
-  port: 5432,
-});
-```
-
-## 🧪 Uso de la API
-
-### 1. **Probar con Swagger:**
-- Ve a `http://localhost:3000/api-docs`
-- Explora todos los endpoints
-- Prueba funcionalidades directamente
-
-### 2. **Cargar dataset:**
-```bash
-curl -X POST \
-  http://localhost:3000/api/upload-dataset \
-  -H 'Content-Type: multipart/form-data' \
-  -F 'file=@Stress_Dataset.csv'
-```
-
-### 3. **Ver estadísticas:**
-```bash
-curl http://localhost:3000/api/stats
-```
-
-## 📊 Formatos de Archivo Soportados
-
-### Stress_Dataset.csv
-- Columnas: Gender, Age, preguntas de estrés
-- Separador: `;` (punto y coma)
-- Mapeo automático a la base de datos
-
-### StressLevelDataset.csv
-- Columnas: anxiety_level, stress_level, etc.
-- Separador: `;` (punto y coma)
-- Mapeo automático a la base de datos
-
-## 🚀 Despliegue
-
-### Desarrollo local
-```bash
-npm start
-# o
-node server.js
-```
-
-### Producción
-```bash
-npm install --production
-NODE_ENV=production node server.js
-```
+La estructura de la base de datos y los archivos soportados se mantiene como en la versión anterior (ver sección original para detalles).
 
 ## 🤝 Colaboración
 
-### Para el equipo de Frontend:
 - **Base URL:** `http://localhost:3000`
 - **Documentación:** `/api-docs`
 - **Endpoints principales:** `/api/upload-dataset`, `/api/stats`
 - **Formato de respuesta:** JSON estándar
-- **Manejo de errores:** Códigos HTTP apropiados
-
-### Estructura de respuestas:
-```json
-{
-  "message": "Mensaje descriptivo",
-  "data": "Datos de la respuesta",
-  "status": "success/error"
-}
-```
-
-## 📝 Scripts Disponibles
-
-```json
-{
-  "start": "node server.js",
-  "dev": "nodemon server.js"
-}
-```
-
-## 🔍 Troubleshooting
-
-### Problemas comunes:
-1. **Error de conexión a PostgreSQL:**
-   - Verificar que PostgreSQL esté ejecutándose
-   - Confirmar credenciales de base de datos
-
-2. **Error de puerto ocupado:**
-   - Cambiar puerto en `server.js`
-   - Verificar que no haya otros servicios usando el puerto 3000
-
-3. **Error de permisos de archivo:**
-   - Verificar permisos de escritura en el directorio
-   - Confirmar que el usuario tenga acceso a PostgreSQL
-
-## 📞 Soporte
-
-Para dudas o problemas:
-- Revisar logs del servidor
-- Consultar documentación Swagger
-- Verificar configuración de base de datos
 
 ## 📄 Licencia
 
@@ -245,4 +105,4 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 
 ---
 
-**Desarrollado con ❤️ para el análisis de datos de estrés estudiantil**
+**Desarrollado con ❤️ para el análisis y mejora del bienestar universitario**
