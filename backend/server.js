@@ -1,10 +1,28 @@
 const express = require('express');
+const app = express(); // <-- CREA EL OBJETO app AQUÍ
+
+const port = 3000;
+
+app.listen(port, () => {
+  console.log(`Server listening on http://localhost:${port}`);
+  // ...
+});
+
+const cors = require('cors');
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+
 const { Pool } = require('pg');
 const multer = require('multer');
 const csv = require('csv-parser');
 const stream = require('stream');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+
+// server.js (arriba, antes de tus rutas)
+
+
 
 const removeAccents = (s='') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const norm = (s='') =>
@@ -20,8 +38,6 @@ const detectSeparator = (buf) => {
 };
 
 
-const app = express();
-const port = 3000;
 
 console.log('Booting server from file:', __filename);
 console.log('Working directory (cwd):', process.cwd());
@@ -29,8 +45,9 @@ console.log('Working directory (cwd):', process.cwd());
 // rutas de salud y depuración
 app.get('/ping', (req, res) => res.send('pong'));
 app.get('/_routes', (req, res) => {
+  const stack = (app._router && app._router.stack) ? app._router.stack : [];
   const routes = [];
-  app._router.stack.forEach((m) => {
+  stack.forEach((m) => {
     if (m.route && m.route.path) {
       const methods = Object.keys(m.route.methods).join(',').toUpperCase();
       routes.push({ methods, path: m.route.path });
@@ -38,6 +55,8 @@ app.get('/_routes', (req, res) => {
   });
   res.json(routes);
 });
+
+
 
 
 // Servir archivos estáticos
@@ -270,55 +289,57 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
     bufferStream
       .pipe(csv({
         separator: sep,
-        mapHeaders: ({ header }) => norm(header), // normaliza cabeceras
+        mapHeaders: ({ header }) => norm(header), // normaliza cabeceras (minúsculas, sin tildes, espacios colapsados)
       }))
       .on('data', (data) => records.push(data))
       .on('end', async () => {
         try {
           if (records.length === 0) {
-            // error 400 si el CSV está vacío
             return res.status(400).json({ error: 'CSV vacío' });
           }
 
           await client.query('BEGIN');
 
-          const firstRow = records[0] || {};
+          const firstRow   = records[0] || {};
+          const headersAll = Object.keys(firstRow);
+
+          // Detecta tipo de archivo (tras normalizar cabeceras)
           let isStressDataset = false;
           let isStressLevelDataset = false;
           let isEncuestasUCaldas = false;
 
-          // OJO: cabeceras ya están normalizadas por norm()
-          if (firstRow['gender'] !== undefined && firstRow['age'] !== undefined) {
+          if ('gender' in firstRow && 'age' in firstRow) {
             isStressDataset = true;
-          } else if (firstRow['anxiety_level'] !== undefined && firstRow['stress_level'] !== undefined) {
+          } else if ('anxiety_level' in firstRow && 'stress_level' in firstRow) {
             isStressLevelDataset = true;
           } else {
-            const headers = Object.keys(firstRow);
-            const findHeader = (...keywords) =>
-              headers.find(h => keywords.every(k => h.includes(k)));
+            const findHeader = (...kw) => headersAll.find(h => kw.every(k => h.includes(k)));
             if (findHeader('genero') || findHeader('edad') || findHeader('tipo','estres')) {
               isEncuestasUCaldas = true;
             }
           }
 
-          console.log(
-            'Detected file type:',
-            isStressDataset ? 'Stress_Dataset.csv'
-            : isStressLevelDataset ? 'StressLevelDataset.csv'
-            : isEncuestasUCaldas ? 'Encuestas_UCaldas.csv'
-            : 'Unknown'
-          );
+          // Ahora sí, define la etiqueta de origen
+          const src =
+            isStressDataset ? 'Stress_Dataset' :
+            isStressLevelDataset ? 'StressLevelDataset' :
+            isEncuestasUCaldas ? 'Encuestas_UCaldas' :
+            'Unknown';
 
-          if (!isStressDataset && !isStressLevelDataset && !isEncuestasUCaldas) {
-            // No hagas release aquí; deja que lo haga el finally
+          console.log('Detected file type:', src, 'sep:', sep, 'headers:', headersAll);
+
+          if (src === 'Unknown') {
             await client.query('ROLLBACK');
             return res.status(400).json({
               error: `Formato de CSV no reconocido (sep="${sep}"). Verifica cabeceras/separador.`,
             });
           }
 
+          let inserted = 0;
+
           for (const row of records) {
             if (isStressDataset) {
+              // === Stress_Dataset.csv (inglés) ===
               const columnMapping = {
                 'gender': 'gender',
                 'age': 'age',
@@ -361,15 +382,21 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
                   vals.push(v === '' ? null : v);
                 }
               }
+              // guarda el origen
+              cols.push('source');
+              vals.push(src);
+
               if (cols.length) {
                 const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
                 await client.query(
                   `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
                   vals
                 );
+                inserted++;
               }
 
             } else if (isStressLevelDataset) {
+              // === StressLevelDataset.csv (inglés) ===
               const columnMapping = {
                 'anxiety_level': 'anxiety',
                 'self_esteem': 'stress_experience',
@@ -403,20 +430,22 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
                   vals.push(v);
                 }
               }
+              // origen
+              cols.push('source');
+              vals.push(src);
+
               if (cols.length) {
                 const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
                 await client.query(
                   `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
                   vals
                 );
+                inserted++;
               }
 
-            } else if (isEncuestasUCaldas) {
-              // español con cabeceras largas (ya normalizadas por norm)
-              const headers = Object.keys(firstRow);
-              const findHeader = (...keywords) =>
-                headers.find(h => keywords.every(k => h.includes(k)));
-
+            } else {
+              // === Encuestas_UCaldas.csv (español) ===
+              const findHeader = (...kw) => headersAll.find(h => kw.every(k => h.includes(k)));
               const headerMap = {
                 gender:               findHeader('genero') || findHeader('sexo'),
                 age:                  findHeader('edad'),
@@ -442,6 +471,9 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
                 cols.push(dbCol);
                 vals.push(v === '' ? null : v);
               }
+              // origen
+              cols.push('source');
+              vals.push(src);
 
               if (cols.length) {
                 const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
@@ -449,27 +481,22 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
                   `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
                   vals
                 );
+                inserted++;
               }
             }
           }
 
-          // ✅ un solo COMMIT y una sola respuesta
           await client.query('COMMIT');
           return res.status(200).json({
             message: 'Dataset uploaded and processed successfully',
-            fileType: isStressDataset
-              ? 'Stress_Dataset.csv'
-              : isStressLevelDataset
-              ? 'StressLevelDataset.csv'
-              : 'Encuestas_UCaldas.csv',
-            recordsProcessed: records.length,
+            fileType: src + '.csv',
+            recordsProcessed: inserted,
           });
 
         } catch (err) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('Error processing file:', err);
-          const status = err.httpStatus || 500;
-          return res.status(status).json({ error: err.publicMessage || err.message });
+          return res.status(500).json({ error: err.message });
         } finally {
           client.release();
         }
@@ -481,6 +508,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
     return res.status(500).json({ error: outerErr.message });
   }
 });
+
 
 
 
@@ -858,6 +886,299 @@ console.log(`  GET  /api/data - List data (sanity)`);
 const path = require('path');
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+
+
+
+// === %≥4 por ítem (UCaldas vs Otras) para gráficos ===
+app.get('/api/compare/likert-ge4', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Ítems tipo Likert disponibles
+    const items = [
+      'sleep_problems','headaches','concentration_issues',
+      'irritability','palpitations','sadness','anxiety'
+    ];
+
+    // 1) Base: castear a int (1..5) y etiquetar grupo
+    const baseSql = `
+      WITH base AS (
+        SELECT
+          CASE
+            WHEN source = 'Encuestas_UCaldas' THEN 'Universidad de Caldas'
+            ELSE 'Otras universidades'
+          END AS university_group,
+          ${items.map(k => `NULLIF(${k}, '')::int AS ${k}`).join(', ')}
+        FROM survey_responses
+      )
+      SELECT * FROM base;
+    `;
+    const base = await client.query(baseSql);
+
+    // 2) Agregar por grupo: total filas y conteo de >=4 por ítem
+    const groups = {};
+    for (const row of base.rows) {
+      const g = row.university_group || 'Otras universidades';
+      if (!groups[g]) groups[g] = { n: 0 };
+      groups[g].n += 1;
+      for (const k of items) {
+        if (!groups[g][k]) groups[g][k] = 0;
+        const v = row[k];
+        if (Number.isFinite(v) && v >= 4) groups[g][k] += 1;
+      }
+    }
+
+    // 3) Armar series para línea: [{name, data:[{x,y}...]}]
+    const label = {
+      sleep_problems: 'Sueño',
+      headaches: 'Dolor cabeza',
+      concentration_issues: 'Concentración',
+      irritability: 'Irritabilidad',
+      palpitations: 'Palpitaciones',
+      sadness: 'Tristeza',
+      anxiety: 'Ansiedad'
+    };
+
+    const series = Object.entries(groups).map(([name, stats]) => ({
+      name,
+      data: items.map(k => ({
+        x: label[k],
+        y: stats.n ? Math.round((stats[k] * 10000) / stats.n) / 100 : 0 // % con 2 decimales
+      }))
+    }));
+
+    res.json({ series });
+  } catch (e) {
+    console.error('GET /api/compare/likert-ge4 error:', e);
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+app.get('/api/factores-clave', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const items = [
+      'sleep_problems','headaches','concentration_issues',
+      'irritability','palpitations','sadness','anxiety'
+    ];
+
+    // Agrupa por universidad
+    const groups = [
+      { key: 'Universidad de Caldas', cond: "source = 'Encuestas_UCaldas'" },
+      { key: 'Otras universidades', cond: "source <> 'Encuestas_UCaldas' OR source IS NULL" }
+    ];
+
+    const resultados = [];
+    for (const group of groups) {
+      const factores = [];
+      for (const k of items) {
+        const sql = `
+          SELECT
+            ROUND(AVG(NULLIF(${k},'')::int)::numeric,2) AS promedio,
+            ROUND(100.0 * SUM(CASE WHEN NULLIF(${k},'')::int >= 4 THEN 1 ELSE 0 END) / NULLIF(COUNT(NULLIF(${k},'')),0),2) AS porcentaje_ge4
+          FROM survey_responses
+          WHERE ${group.cond}
+        `;
+        const r = await client.query(sql);
+        factores.push({
+          factor: k,
+          promedio: Number(r.rows[0].promedio) || 0,
+          porcentaje_ge4: Number(r.rows[0].porcentaje_ge4) || 0
+        });
+      }
+      resultados.push({
+        universidad: group.key,
+        factores
+      });
+    }
+
+    res.json({ resultados });
+  } catch (e) {
+    console.error('GET /api/factores-clave error:', e);
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+/**
+ * @swagger
+ * /api/what-if:
+ *   post:
+ *     summary: Simulación "What-If" sobre factores de estrés (Likert)
+ *     tags: [Simulacion]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               filters:
+ *                 type: object
+ *                 properties:
+ *                   gender: { type: string, example: "F" }
+ *                   age_min: { type: integer, example: 18 }
+ *                   age_max: { type: integer, example: 25 }
+ *                   university_group:
+ *                     type: string
+ *                     enum: [ucaldas, otras, todas]
+ *                     example: ucaldas
+ *               interventions:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       enum: [tutoria_academica, salud_mental, actividad_fisica, gestion_tiempo, apoyo_economico, ambiente_residencia]
+ *                     pct: { type: number, example: 20 }
+ *               effectiveness:
+ *                 type: number
+ *                 description: Eficacia global 0..1 (default 0.5)
+ *                 example: 0.5
+ *     responses:
+ *       200: { description: OK }
+ *       500: { description: Error }
+ */
+app.post('/api/what-if', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const items = [
+      'sleep_problems','headaches','concentration_issues',
+      'irritability','palpitations','sadness','anxiety'
+    ];
+    const labels = {
+      sleep_problems: 'Sueño',
+      headaches: 'Dolor cabeza',
+      concentration_issues: 'Concentración',
+      irritability: 'Irritabilidad',
+      palpitations: 'Palpitaciones',
+      sadness: 'Tristeza',
+      anxiety: 'Ansiedad'
+    };
+
+    // 1) Intervenciones y pesos por ítem
+    const EFFECT_MAP = {
+      tutoria_academica: { concentration_issues: 0.6, academic_overload: 0.4 },
+  salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
+  higiene_sueno:     { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 }, // alias
+  apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
+    };
+
+    const body = req.body || {};
+    const filters = body.filters || {};
+    const interventions = Array.isArray(body.interventions) ? body.interventions : [];
+    const effectiveness = Math.max(0, Math.min(1, Number(body.effectiveness ?? 0.5))); // 0..1
+
+    // 2) WHERE dinámico
+    const where = [];
+    const params = [];
+
+    // University group
+    const ug = (filters.university_group || 'todas').toLowerCase();
+    if (ug === 'ucaldas') {
+      where.push(`source = 'Encuestas_UCaldas'`);
+    } else if (ug === 'otras') {
+      where.push(`(source <> 'Encuestas_UCaldas' OR source IS NULL)`);
+    }
+
+    // Género (flexible)
+    const g = (filters.gender || '').toLowerCase().trim();
+    if (g) {
+      if (['f','femenino','female','mujer'].includes(g)) {
+        where.push(`(gender ILIKE 'F%' OR LOWER(gender) IN ('female','mujer'))`);
+      } else if (['m','masculino','male','hombre'].includes(g)) {
+        where.push(`(gender ILIKE 'M%' OR LOWER(gender) IN ('male','hombre'))`);
+      } else {
+        params.push(`%${filters.gender}%`);
+        where.push(`gender ILIKE $${params.length}`);
+      }
+    }
+
+    const aMin = parseInt(filters.age_min ?? '', 10);
+    if (Number.isFinite(aMin)) { params.push(aMin); where.push(`age >= $${params.length}`); }
+    const aMax = parseInt(filters.age_max ?? '', 10);
+    if (Number.isFinite(aMax)) { params.push(aMax); where.push(`age <= $${params.length}`); }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    // 3) Baseline: N válidos, GE4 y AVG por ítem (en una sola query)
+    const aggSql = `
+      SELECT
+        ${items.map(k => `
+          COUNT(NULLIF(${k},''))                    AS n_${k},
+          SUM( CASE WHEN NULLIF(${k},'')::int >= 4 THEN 1 ELSE 0 END ) AS ge4_${k},
+          ROUND(AVG(NULLIF(${k},'')::int)::numeric,2) AS avg_${k}
+        `).join(',')}
+      FROM survey_responses
+      ${whereSql}
+    `;
+    const r = await client.query(aggSql, params);
+    const row = r.rows[0] || {};
+
+    const baseline = items.map(k => {
+      const n   = Number(row[`n_${k}`])   || 0;
+      const ge4 = Number(row[`ge4_${k}`]) || 0;
+      const avg = Number(row[`avg_${k}`]);
+      const p   = n > 0 ? +(ge4 * 100 / n).toFixed(2) : 0;
+      return { key: k, label: labels[k], n, ge4, pct_ge4: p, avg: Number.isFinite(avg) ? avg : 0 };
+    });
+
+    // 4) Reducción combinada por ítem a partir de las intervenciones
+    const red = Object.fromEntries(items.map(k => [k, 0]));
+    for (const it of interventions) {
+      const type = it?.type;
+      const pct  = Math.max(0, Math.min(100, Number(it?.pct || 0))); // 0..100
+      const weights = EFFECT_MAP[type];
+      if (!weights) continue;
+      for (const [k, w] of Object.entries(weights)) {
+        // suma reducciones, cap en 0.6
+        red[k] = Math.min(0.6, red[k] + (pct/100) * effectiveness * w);
+      }
+    }
+
+    // 5) Predicción
+    const ALPHA = 0.4; // cuanto mueve el promedio cuando baja %≥4
+    const scenario = baseline.map(b => {
+      const rdx = red[b.key] || 0;
+      const pct_ge4_pred = +(b.pct_ge4 * (1 - rdx)).toFixed(2);
+      const avg_pred     = +( (b.avg - (b.avg - 1) * (rdx * ALPHA)).toFixed(2) );
+      const delta_pp     = +(pct_ge4_pred - b.pct_ge4).toFixed(2); // puntos porcentuales
+      return {
+        key: b.key, label: b.label,
+        baseline: { pct_ge4: b.pct_ge4, avg: b.avg, n: b.n },
+        predicted: { pct_ge4: pct_ge4_pred, avg: avg_pred },
+        reduction_factor: +rdx.toFixed(3),
+        delta_pp
+      };
+    });
+
+    // 6) Índices globales (promedio de %≥4)
+    const mean = arr => (arr.length ? +(arr.reduce((a,c)=>a+c,0)/arr.length).toFixed(2) : 0);
+    const baseIndex = mean(baseline.map(b => b.pct_ge4));
+    const predIndex = mean(scenario.map(s => s.predicted.pct_ge4));
+
+    res.json({
+      status: 'success',
+      meta: { filters, effectiveness, interventions },
+      baseline: {
+        index_pct_ge4: baseIndex,
+        items: baseline
+      },
+      scenario: {
+        index_pct_ge4: predIndex,
+        delta_index_pp: +(predIndex - baseIndex).toFixed(2),
+        items: scenario
+      }
+    });
+  } catch (e) {
+    console.error('POST /api/what-if error:', e);
+    res.status(500).json({ status: 'error', message: e.message });
+  } finally {
+    client.release();
+  }
 });
 
 

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import KpiCard from '../components/KpiCard.jsx'
 import TrendLineChart from '../components/TrendLineChart.jsx'
-import { getResumen, getSerie } from '../lib/api.js'
 import { Link } from 'react-router-dom'
+import { getResumen } from '/src/lib/api.js';
+import { getSerie } from '/src/lib/api.js';
+
+
 
 export default function Home(){
   const [res, setRes] = useState(null)

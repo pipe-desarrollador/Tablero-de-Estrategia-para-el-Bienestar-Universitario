@@ -1,43 +1,40 @@
-import { useState } from 'react'
-import UploadCSV from '../components/UploadCSV.jsx'
-import { postUploadCSV } from '../lib/api.js'
+// /src/pages/Reportes.jsx
+import { useState } from 'react';
+import { postUploadCSV, clearDatabase, getTableStructure } from '../lib/api.js';
 
-export default function Reportes(){
-  const [rows, setRows] = useState([])
-  const [saved, setSaved] = useState(null)
 
-  const handleSave = async () => {
-    const r = await postUploadCSV(rows)
-    setSaved(r)
+export default function Reportes() {
+  const [file, setFile] = useState(null);
+  const [resp, setResp] = useState(null);
+  const [err, setErr] = useState('');
+
+  async function handleUpload(e) {
+    e.preventDefault();
+    try {
+      setErr('');
+      setResp(null);
+      if (!file) throw new Error('Selecciona un archivo CSV');
+      const r = await postUploadCSV(file);
+      setResp(r);
+    } catch (e) {
+      setErr(e.message || 'Error subiendo CSV');
+    }
   }
 
   return (
     <section>
-      <h1 className="text-3xl font-bold text-slate-800">Reportes y Carga de Datos</h1>
-      <p className="text-slate-600 mt-2">Carga archivos con la estructura definida y guarda la información (conecta tu API).</p>
+      <h1 className="text-2xl font-bold">Cargar dataset (CSV)</h1>
+      <form onSubmit={handleUpload} className="mt-3 flex gap-3 items-center">
+        <input type="file" accept=".csv" onChange={e => setFile(e.target.files?.[0] || null)} />
+        <button type="submit" className="px-3 py-2 rounded bg-blue-600 text-white">Subir</button>
+      </form>
 
-      <div className="flex items-center gap-3 mt-4">
-        <UploadCSV onData={setRows} />
-        <button className="btn-primary" onClick={handleSave} disabled={!rows.length}>Guardar</button>
-        {saved && <span className="text-sm text-slate-600">Guardado: {saved.ok ? 'ok' : 'error'} ({saved.count} filas)</span>}
-      </div>
-
-      <div className="card p-4 mt-6 overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-left text-slate-500">
-            <tr>
-              {(rows[0] ? Object.keys(rows[0]) : ['No hay datos']).map((h,i)=>(<th key={i} className="py-2 pr-4">{h}</th>))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r,idx)=>(
-              <tr key={idx} className="border-t border-slate-200">
-                {Object.values(r).map((v,i)=>(<td key={i} className="py-2 pr-4 whitespace-nowrap">{String(v)}</td>))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {err && <div className="mt-3 text-red-600">{err}</div>}
+      {resp && (
+        <pre className="mt-3 p-3 bg-slate-100 rounded text-sm text-slate-800">
+{JSON.stringify(resp, null, 2)}
+        </pre>
+      )}
     </section>
-  )
+  );
 }

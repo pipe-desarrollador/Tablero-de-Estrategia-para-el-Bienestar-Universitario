@@ -1,42 +1,164 @@
-// Capa de acceso a datos (Data Subsystem) para conectar con el backend.
-// Todos los endpoints están centralizados aquí para que luego conectes tu API real.
-// Swagger sugerido: GET /api/docs (OpenAPI 3).
+// /src/lib/api.js
+const API_BASE =
+  (import.meta?.env?.VITE_API_BASE && import.meta.env.VITE_API_BASE.trim()) ||
+  'http://localhost:3000';
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-
-export async function getResumen(){
-  // Ejemplo de consumo. Reemplaza por fetch(`${BASE}/resumen`)
-  // Simulamos con datos mock para el frontend.
-  return {
-    promedio: 3.5,
-    variacion: 0.12,
-    top: ['Problemas de sueño', 'Presión académica', 'Carrera futura']
+async function getJSON(path) {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`${r.status} ${r.statusText} – ${txt}`);
   }
+  return r.json();
 }
 
-export async function getSerie(){
-  return [
-    { mes: 'Ene', actual: 2.1, anterior: 1.8 },
-    { mes: 'Feb', actual: 2.7, anterior: 2.0 },
-    { mes: 'Mar', actual: 3.0, anterior: 2.2 },
-    { mes: 'Abr', actual: 3.2, anterior: 2.5 },
-    { mes: 'May', actual: 3.4, anterior: 2.7 },
-    { mes: 'Jun', actual: 3.9, anterior: 2.9 },
-  ]
+// ===========================
+// Endpoints de LECTURA
+// ===========================
+
+// Serie para AnalisisComparativo
+export async function getSerie() {
+  const data = await getJSON('/api/compare/likert-ge4');
+  return data.series ?? [];
 }
 
-export async function getFactores(){
-  return [
-    { nombre: 'Sueño', impacto: 8.5, prevalencia: 7.2, poblacion: 650 },
-    { nombre: 'Académico', impacto: 7.8, prevalencia: 6.4, poblacion: 540 },
-    { nombre: 'Finanzas', impacto: 6.2, prevalencia: 5.1, poblacion: 420 },
-    { nombre: 'Pares', impacto: 4.5, prevalencia: 4.0, poblacion: 210 },
-    { nombre: 'Carrera', impacto: 8.0, prevalencia: 6.8, poblacion: 580 },
-  ]
+// Resumen general desde /api/stats (usa filtros opcionales)
+export async function getResumen(filters = {}) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null && `${v}`.trim() !== '') qs.set(k, v);
+  }
+  const q = qs.toString();
+  return getJSON(`/api/stats${q ? `?${q}` : ''}`);
 }
 
-export async function postUploadCSV(rows){
-  // Placeholder para guardar datos.
-  // return fetch(`${BASE}/upload`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(rows) })
-  return { ok: true, count: rows?.length || 0 }
+// Factores clave (ranking de promedios Likert)
+export async function getFactores(filters = {}) {
+  const stats = await getResumen(filters);
+  const labels = {
+    sleep_problems: 'Sueño',
+    headaches: 'Dolor cabeza',
+    concentration_issues: 'Concentración',
+    irritability: 'Irritabilidad',
+    palpitations: 'Palpitaciones',
+    sadness: 'Tristeza',
+    anxiety: 'Ansiedad',
+  };
+  const avgs = stats?.likert_avgs || {};
+  return Object.entries(labels)
+    .map(([key, label]) => {
+      const v = Number(avgs[key]);
+      return { key, label, avg: Number.isFinite(v) ? v : 0 };
+    })
+    .filter(r => r.avg > 0)
+    .sort((a, b) => b.avg - a.avg);
+}
+
+// (opcional) Lista paginada desde /api/data
+export async function getData(params = {}) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && `${v}`.trim() !== '') qs.set(k, v);
+  }
+  if (!qs.has('columns')) qs.set('columns', 'id,gender,age,stress_type');
+  return getJSON(`/api/data?${qs.toString()}`);
+}
+
+// ===========================
+// Endpoints de ESCRITURA
+// ===========================
+
+// ⬆️ Subir CSV al backend (lo que te falta)
+export async function postUploadCSV(file) {
+  const fd = new FormData();
+  fd.append('file', file, file?.name || 'dataset.csv');
+  const r = await fetch(`${API_BASE}/api/upload-dataset`, {
+    method: 'POST',
+    body: fd, // no pongas Content-Type; fetch agrega el boundary
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`${r.status} ${r.statusText} – ${txt}`);
+  }
+  return r.json(); // { message, fileType, recordsProcessed }
+}
+
+export async function getFactoresComparativo() {
+  const json = await getJSON('/api/factores-clave');
+  const resultados = json?.resultados || [];
+
+  // orden y etiquetas como en el backend
+  const items = [
+    'sleep_problems','headaches','concentration_issues',
+    'irritability','palpitations','sadness','anxiety'
+  ];
+  const labelMap = {
+    sleep_problems: 'Sueño',
+    headaches: 'Dolor cabeza',
+    concentration_issues: 'Concentración',
+    irritability: 'Irritabilidad',
+    palpitations: 'Palpitaciones',
+    sadness: 'Tristeza',
+    anxiety: 'Ansiedad'
+  };
+  const labels = items.map(k => labelMap[k]);
+
+  const findGroup = (name) =>
+    resultados.find(g => g.universidad === name) || { factores: [] };
+
+  const dataBy = (group, field) =>
+    items.map(k => {
+      const f = group.factores.find(x => x.factor === k);
+      return Number(f?.[field]) || 0;
+    });
+
+  const ucaldas = findGroup('Universidad de Caldas');
+  const otras   = findGroup('Otras universidades');
+
+  return {
+    labels,
+    promedio: [
+      { name: 'Universidad de Caldas', data: dataBy(ucaldas, 'promedio') },
+      { name: 'Otras universidades',   data: dataBy(otras,   'promedio') }
+    ],
+    porcentaje_ge4: [
+      { name: 'Universidad de Caldas', data: dataBy(ucaldas, 'porcentaje_ge4') },
+      { name: 'Otras universidades',   data: dataBy(otras,   'porcentaje_ge4') }
+    ]
+  };
+}
+async function postJSON(path, body, opts = {}) {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+    signal: opts.signal,
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`${r.status} ${r.statusText} – ${txt}`);
+  }
+  return r.json();
+}
+// ===== NUEVO: para Simulaciones.jsx =====
+export async function postWhatIf(payload) {
+  // payload esperado por tu backend:
+  // {
+  //   filters: { university_group?: 'ucaldas'|'otras', gender?, age_min?, age_max? },
+  //   interventions: [{type:'tutoria_academica'|'salud_mental'|'apoyo_financiero', pct:number}, ...],
+  //   effectiveness: number (0..1)
+  // }
+  return postJSON('/api/what-if', payload);
+}
+
+// (opcionales, por si los usas en Reportes)
+export async function clearDatabase() {
+  const r = await fetch(`${API_BASE}/api/clear-data`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+export async function getTableStructure() {
+  return getJSON('/api/table-structure');
 }
