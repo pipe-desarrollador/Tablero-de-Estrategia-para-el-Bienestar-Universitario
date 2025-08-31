@@ -1062,9 +1062,9 @@ app.post('/api/what-if', async (req, res) => {
     // 1) Intervenciones y pesos por ítem
     const EFFECT_MAP = {
       tutoria_academica: { concentration_issues: 0.6, academic_overload: 0.4 },
-  salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
-  higiene_sueno:     { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 }, // alias
-  apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
+      salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
+      higiene_sueno:     { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 }, // alias
+     apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
     };
 
     const body = req.body || {};
