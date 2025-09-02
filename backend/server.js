@@ -3,10 +3,7 @@ const app = express(); // <-- CREA EL OBJETO app AQUÍ
 
 const port = 3000;
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-  // ...
-});
+
 
 const cors = require('cors');
 app.use(cors());
@@ -168,58 +165,58 @@ const swaggerOptions = {
 
 const specs = swaggerJsdoc(swaggerOptions);
 
-// Lista de preguntas del archivo Stress_Dataset.csv
-const preguntas = [
-  "Have you recently experienced stress in your life?",
-  "Have you noticed a rapid heartbeat or palpitations?",
-  "Have you been dealing with anxiety or tension recently?",
-  "Do you face any sleep problems or difficulties falling asleep?",
-  "Have you been dealing with anxiety or tension recently?.1", // Nota: hay una columna duplicada
-  "Have you been getting headaches more often than usual?",
-  "Do you get irritated easily?",
-  "Do you have trouble concentrating on your academic tasks?",
-  "Have you been feeling sadness or low mood?",
-  "Have you been experiencing any illness or health issues?",
-  "Do you often feel lonely or isolated?",
-  "Do you feel overwhelmed with your academic workload?",
-  "Are you in competition with your peers, and does it affect you?",
-  "Do you find that your relationship often causes you stress?",
-  "Are you facing any difficulties with your professors or instructors?",
-  "Is your working environment unpleasant or stressful?",
-  "Do you struggle to find time for relaxation and leisure activities?",
-  "Is your hostel or home environment causing you difficulties?",
-  "Do you lack confidence in your academic performance?",
-  "Do you lack confidence in your choice of academic subjects?",
-  "Academic and extracurricular activities conflicting for you?",
-  "Do you attend classes regularly?",
-  "Have you gained/lost weight?",
-  "Which type of stress do you primarily experience?"
-];
+// Lista de preguntas del archivo Stress_Dataset.csv (comentado por no uso actual)
+// const preguntas = [
+//   'Have you recently experienced stress in your life?',
+//   'Have you noticed a rapid heartbeat or palpitations?',
+//   'Have you been dealing with anxiety or tension recently?',
+//   'Do you face any sleep problems or difficulties falling asleep?',
+//   'Have you been dealing with anxiety or tension recently?.1', // Nota: hay una columna duplicada
+//   'Have you been getting headaches more often than usual?',
+//   'Do you get irritated easily?',
+//   'Do you have trouble concentrating on your academic tasks?',
+//   'Have you been feeling sadness or low mood?',
+//   'Have you been experiencing any illness or health issues?',
+//   'Do you often feel lonely or isolated?',
+//   'Do you feel overwhelmed with your academic workload?',
+//   'Are you in competition with your peers, and does it affect you?',
+//   'Do you find that your relationship often causes you stress?',
+//   'Are you facing any difficulties with your professors or instructors?',
+//   'Is your working environment unpleasant or stressful?',
+//   'Do you struggle to find time for relaxation and leisure activities?',
+//   'Is your hostel or home environment causing you difficulties?',
+//   'Do you lack confidence in your academic performance?',
+//   'Do you lack confidence in your choice of academic subjects?',
+//   'Academic and extracurricular activities conflicting for you?',
+//   'Do you attend classes regularly?',
+//   'Have you gained/lost weight?',
+//   'Which type of stress do you primarily experience?'
+// ];
 
-// Lista de preguntas del archivo StressLevelDataset.csv
-const preguntasStressLevel = [
-  "anxiety_level",
-  "self_esteem", 
-  "mental_health_history",
-  "depression",
-  "headache",
-  "blood_pressure",
-  "sleep_quality",
-  "breathing_problem",
-  "noise_level",
-  "living_conditions",
-  "safety",
-  "basic_needs",
-  "academic_performance",
-  "study_load",
-  "teacher_student_relationship",
-  "future_career_concerns",
-  "social_support",
-  "peer_pressure",
-  "extracurricular_activities",
-  "bullying",
-  "stress_level"
-];
+// Lista de preguntas del archivo StressLevelDataset.csv (comentado por no uso actual)
+// const preguntasStressLevel = [
+//   'anxiety_level',
+//   'self_esteem', 
+//   'mental_health_history',
+//   'depression',
+//   'headache',
+//   'blood_pressure',
+//   'sleep_quality',
+//   'breathing_problem',
+//   'noise_level',
+//   'living_conditions',
+//   'safety',
+//   'basic_needs',
+//   'academic_performance',
+//   'study_load',
+//   'teacher_student_relationship',
+//   'future_career_concerns',
+//   'social_support',
+//   'peer_pressure',
+//   'extracurricular_activities',
+//   'bullying',
+//   'stress_level'
+// ];
 
 // Configurar Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
@@ -322,9 +319,9 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           // Ahora sí, define la etiqueta de origen
           const src =
             isStressDataset ? 'Stress_Dataset' :
-            isStressLevelDataset ? 'StressLevelDataset' :
-            isEncuestasUCaldas ? 'Encuestas_UCaldas' :
-            'Unknown';
+              isStressLevelDataset ? 'StressLevelDataset' :
+                isEncuestasUCaldas ? 'Encuestas_UCaldas' :
+                  'Unknown';
 
           console.log('Detected file type:', src, 'sep:', sep, 'headers:', headersAll);
 
@@ -489,7 +486,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           await client.query('COMMIT');
           return res.status(200).json({
             message: 'Dataset uploaded and processed successfully',
-            fileType: src + '.csv',
+            fileType: `${src  }.csv`,
             recordsProcessed: inserted,
           });
 
@@ -671,9 +668,9 @@ app.get('/api/data', async (req, res) => {
     if (genderRaw) {
       const g = genderRaw.toLowerCase();
       if (['f', 'femenino', 'female', 'mujer'].includes(g)) {
-        where.push(`(gender ILIKE 'F%' OR LOWER(gender) IN ('female','mujer'))`);
+        where.push('(gender ILIKE \'F%\' OR LOWER(gender) IN (\'female\',\'mujer\'))');
       } else if (['m', 'masculino', 'male', 'hombre'].includes(g)) {
-        where.push(`(gender ILIKE 'M%' OR LOWER(gender) IN ('male','hombre'))`);
+        where.push('(gender ILIKE \'M%\' OR LOWER(gender) IN (\'male\',\'hombre\'))');
       } else {
         params.push(`%${genderRaw}%`);
         where.push(`gender ILIKE $${params.length}`);
@@ -878,9 +875,7 @@ app.get('/api/stats', async (req, res) => {
 
 
 
-// (tu /api/stats ya lo tienes; si no, pega el que hicimos antes)
-
-console.log(`  GET  /api/data - List data (sanity)`);
+console.log('  GET  /api/data - List data (sanity)');
 
 
 const path = require('path');
@@ -966,8 +961,8 @@ app.get('/api/factores-clave', async (req, res) => {
 
     // Agrupa por universidad
     const groups = [
-      { key: 'Universidad de Caldas', cond: "source = 'Encuestas_UCaldas'" },
-      { key: 'Otras universidades', cond: "source <> 'Encuestas_UCaldas' OR source IS NULL" }
+      { key: 'Universidad de Caldas', cond: 'source = \'Encuestas_UCaldas\'' },
+      { key: 'Otras universidades', cond: 'source <> \'Encuestas_UCaldas\' OR source IS NULL' }
     ];
 
     const resultados = [];
@@ -1064,7 +1059,7 @@ app.post('/api/what-if', async (req, res) => {
       tutoria_academica: { concentration_issues: 0.6, academic_overload: 0.4 },
       salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
       higiene_sueno:     { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 }, // alias
-     apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
+      apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
     };
 
     const body = req.body || {};
@@ -1079,18 +1074,18 @@ app.post('/api/what-if', async (req, res) => {
     // University group
     const ug = (filters.university_group || 'todas').toLowerCase();
     if (ug === 'ucaldas') {
-      where.push(`source = 'Encuestas_UCaldas'`);
+      where.push('source = \'Encuestas_UCaldas\'');
     } else if (ug === 'otras') {
-      where.push(`(source <> 'Encuestas_UCaldas' OR source IS NULL)`);
+      where.push('(source <> \'Encuestas_UCaldas\' OR source IS NULL)');
     }
 
     // Género (flexible)
     const g = (filters.gender || '').toLowerCase().trim();
     if (g) {
       if (['f','femenino','female','mujer'].includes(g)) {
-        where.push(`(gender ILIKE 'F%' OR LOWER(gender) IN ('female','mujer'))`);
+        where.push('(gender ILIKE \'F%\' OR LOWER(gender) IN (\'female\',\'mujer\'))');
       } else if (['m','masculino','male','hombre'].includes(g)) {
-        where.push(`(gender ILIKE 'M%' OR LOWER(gender) IN ('male','hombre'))`);
+        where.push('(gender ILIKE \'M%\' OR LOWER(gender) IN (\'male\',\'hombre\'))');
       } else {
         params.push(`%${filters.gender}%`);
         where.push(`gender ILIKE $${params.length}`);
@@ -1188,9 +1183,9 @@ app.use((req, res) => {
 
 app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);
-  console.log(`Available endpoints:`);
-  console.log(`  POST /api/upload-dataset - Upload CSV file`);
-  console.log(`  GET  /api/stats - Get database statistics`);
-  console.log(`  DELETE /api/clear-data - Clear database`);
-  console.log(`  GET  /api-docs - Swagger API Documentation`);
+  console.log('Available endpoints:');
+  console.log('  POST /api/upload-dataset - Upload CSV file');
+  console.log('  GET  /api/stats - Get database statistics');
+  console.log('  DELETE /api/clear-data - Clear database');
+  console.log('  GET  /api-docs - Swagger API Documentation');
 });
