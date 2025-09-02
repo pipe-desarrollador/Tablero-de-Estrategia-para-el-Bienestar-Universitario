@@ -1,30 +1,23 @@
+// backend/src/app.js
 const express = require('express');
-const app = express(); // <-- CREA EL OBJETO app AQUÍ
-
-const port = 3000;
-
-
-
 const cors = require('cors');
-app.use(cors());
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-
 const { Pool } = require('pg');
 const multer = require('multer');
 const csv = require('csv-parser');
 const stream = require('stream');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const path = require('path');
 
-// server.js (arriba, antes de tus rutas)
+const app = express();              // ✅ crear la app aquí
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('.'));
 
-
-
+// ---- utilidades ----
 const removeAccents = (s='') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const norm = (s='') =>
-  removeAccents(String(s).replace(/^\ufeff/, '')).trim().toLowerCase().replace(/\s+/g,' ');
-
+const norm = (s='') => removeAccents(String(s).replace(/^\ufeff/, '')).trim().toLowerCase().replace(/\s+/g,' ');
 const detectSeparator = (buf) => {
   const head = buf.toString('utf8').split(/\r?\n/)[0] || '';
   const count = (ch) => (head.match(new RegExp(`\\${ch}`, 'g')) || []).length;
@@ -34,33 +27,7 @@ const detectSeparator = (buf) => {
   return '\t';
 };
 
-
-
-console.log('Booting server from file:', __filename);
-console.log('Working directory (cwd):', process.cwd());
-
-// rutas de salud y depuración
-app.get('/ping', (req, res) => res.send('pong'));
-app.get('/_routes', (req, res) => {
-  const stack = (app._router && app._router.stack) ? app._router.stack : [];
-  const routes = [];
-  stack.forEach((m) => {
-    if (m.route && m.route.path) {
-      const methods = Object.keys(m.route.methods).join(',').toUpperCase();
-      routes.push({ methods, path: m.route.path });
-    }
-  });
-  res.json(routes);
-});
-
-
-
-
-// Servir archivos estáticos
-app.use(express.static('.'));
-
-// Configuración de la base de datos PostgreSQL
-// Reemplaza los valores con los de tu configuración
+// ---- DB / upload ----
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
@@ -68,11 +35,29 @@ const pool = new Pool({
   password: 'admin123',
   port: 5432,
 });
-
-// Configuración de Multer para la carga de archivos
 const upload = multer();
 
-// Configuración de Swagger
+// ---- health/debug ----
+app.get('/ping', (req, res) => res.send('pong'));
+app.get('/_routes', (_req, res) => {
+  const routes = [];
+  const stack = app?._router?.stack ?? [];
+  stack.forEach(layer => {
+    if (layer.route) {
+      const path = layer.route.path;
+      const methods = Object.keys(layer.route.methods)
+        .filter(m => layer.route.methods[m])
+        .map(m => m.toUpperCase())
+        .sort()
+        .join(',');
+      routes.push({ methods, path });
+    }
+  });
+  res.json(routes);
+});
+
+
+// ---- Swagger ----
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -80,56 +65,25 @@ const swaggerOptions = {
       title: 'API de Dataset de Estrés Estudiantil',
       version: '1.0.0',
       description: 'API para cargar y gestionar datasets de estrés estudiantil en PostgreSQL',
-      contact: {
-        name: 'Soporte Técnico',
-        email: 'soporte@ejemplo.com'
-      }
+      contact: { name: 'Soporte Técnico', email: 'soporte@ejemplo.com' }
     },
-    servers: [
-      {
-        url: 'http://localhost:3000',
-        description: 'Servidor de desarrollo'
-      }
-    ],
+    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
     components: {
       schemas: {
         UploadResponse: {
           type: 'object',
           properties: {
-            message: {
-              type: 'string',
-              description: 'Mensaje de confirmación'
-            },
-            fileType: {
-              type: 'string',
-              description: 'Tipo de archivo detectado (Stress_Dataset.csv o StressLevelDataset.csv)'
-            },
-            recordsProcessed: {
-              type: 'integer',
-              description: 'Número de registros procesados'
-            }
+            message: { type: 'string' },
+            fileType: { type: 'string' },
+            recordsProcessed: { type: 'integer' }
           }
         },
-        Error: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'string',
-              description: 'Mensaje de error'
-            }
-          }
-        },
+        Error: { type: 'object', properties: { error: { type: 'string' } } },
         StatsResponse: {
           type: 'object',
           properties: {
-            surveyResponses: {
-              type: 'integer',
-              description: 'Número total de respuestas de encuestas'
-            },
-            message: {
-              type: 'string',
-              description: 'Mensaje informativo'
-            }
+            surveyResponses: { type: 'integer' },
+            message: { type: 'string' }
           }
         },
         TableStructureResponse: {
@@ -140,18 +94,9 @@ const swaggerOptions = {
               items: {
                 type: 'object',
                 properties: {
-                  column_name: {
-                    type: 'string',
-                    description: 'Nombre de la columna'
-                  },
-                  data_type: {
-                    type: 'string',
-                    description: 'Tipo de dato de la columna'
-                  },
-                  is_nullable: {
-                    type: 'string',
-                    description: 'Si la columna permite valores nulos'
-                  }
+                  column_name: { type: 'string' },
+                  data_type: { type: 'string' },
+                  is_nullable: { type: 'string' }
                 }
               }
             }
@@ -160,71 +105,20 @@ const swaggerOptions = {
       }
     }
   },
-  apis: ['./server.js']
 };
-
-const specs = swaggerJsdoc(swaggerOptions);
-
-// Lista de preguntas del archivo Stress_Dataset.csv (comentado por no uso actual)
-// const preguntas = [
-//   'Have you recently experienced stress in your life?',
-//   'Have you noticed a rapid heartbeat or palpitations?',
-//   'Have you been dealing with anxiety or tension recently?',
-//   'Do you face any sleep problems or difficulties falling asleep?',
-//   'Have you been dealing with anxiety or tension recently?.1', // Nota: hay una columna duplicada
-//   'Have you been getting headaches more often than usual?',
-//   'Do you get irritated easily?',
-//   'Do you have trouble concentrating on your academic tasks?',
-//   'Have you been feeling sadness or low mood?',
-//   'Have you been experiencing any illness or health issues?',
-//   'Do you often feel lonely or isolated?',
-//   'Do you feel overwhelmed with your academic workload?',
-//   'Are you in competition with your peers, and does it affect you?',
-//   'Do you find that your relationship often causes you stress?',
-//   'Are you facing any difficulties with your professors or instructors?',
-//   'Is your working environment unpleasant or stressful?',
-//   'Do you struggle to find time for relaxation and leisure activities?',
-//   'Is your hostel or home environment causing you difficulties?',
-//   'Do you lack confidence in your academic performance?',
-//   'Do you lack confidence in your choice of academic subjects?',
-//   'Academic and extracurricular activities conflicting for you?',
-//   'Do you attend classes regularly?',
-//   'Have you gained/lost weight?',
-//   'Which type of stress do you primarily experience?'
-// ];
-
-// Lista de preguntas del archivo StressLevelDataset.csv (comentado por no uso actual)
-// const preguntasStressLevel = [
-//   'anxiety_level',
-//   'self_esteem', 
-//   'mental_health_history',
-//   'depression',
-//   'headache',
-//   'blood_pressure',
-//   'sleep_quality',
-//   'breathing_problem',
-//   'noise_level',
-//   'living_conditions',
-//   'safety',
-//   'basic_needs',
-//   'academic_performance',
-//   'study_load',
-//   'teacher_student_relationship',
-//   'future_career_concerns',
-//   'social_support',
-//   'peer_pressure',
-//   'extracurricular_activities',
-//   'bullying',
-//   'stress_level'
-// ];
-
-// Configurar Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-
-// Endpoint raíz
-app.get('/', (req, res) => {
-  res.redirect('/api-docs');
+const specs = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: { title: 'API de Dataset de Estrés Estudiantil', version: '1.0.0' },
+    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
+  },
+  apis: [path.join(__dirname, '**/*.js')], // 👈 escanea tus rutas
 });
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+app.get('/', (_req, res) => res.redirect('/api-docs'));
+
+
+
 
 
 /**
@@ -878,7 +772,7 @@ app.get('/api/stats', async (req, res) => {
 console.log('  GET  /api/data - List data (sanity)');
 
 
-const path = require('path');
+
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
@@ -1175,17 +1069,21 @@ app.post('/api/what-if', async (req, res) => {
     client.release();
   }
 });
+app.delete('/api/clear-data', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('TRUNCATE survey_responses RESTART IDENTITY');
+    res.json({ message: 'Database cleared successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
 
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-  console.log('Available endpoints:');
-  console.log('  POST /api/upload-dataset - Upload CSV file');
-  console.log('  GET  /api/stats - Get database statistics');
-  console.log('  DELETE /api/clear-data - Clear database');
-  console.log('  GET  /api-docs - Swagger API Documentation');
-});
+module.exports = app;

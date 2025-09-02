@@ -1,16 +1,4 @@
-// const express = require('express'); // No utilizado actualmente
-// const { Pool } = require('pg'); // No utilizado actualmente
-// const fs = require('fs'); // No utilizado actualmente
-// const path = require('path'); // No utilizado actualmente
 
-// Configuración de la base de datos (comentado por no uso actual)
-// const pool = new Pool({
-//   user: 'postgres',
-//   host: 'localhost',
-//   database: 'stress_db',
-//   password: 'admin123',
-//   port: 5432,
-// });
 
 class KPIChecker {
   constructor() {
