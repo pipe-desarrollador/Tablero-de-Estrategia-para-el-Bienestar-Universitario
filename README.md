@@ -114,3 +114,10 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 ---
 
 **Desarrollado con ❤️ para el análisis y mejora del bienestar universitario**
+
+---
+
+## 📚 Documentación del Proyecto
+- Documento detallado del proyecto: [`docs/Documento_Proyecto.md`](docs/Documento_Proyecto.md)
+- Manual de usuario ampliado: [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md)
+- Swagger (API): `http://localhost:3000/api-docs`
