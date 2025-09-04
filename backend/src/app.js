@@ -16,24 +16,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
 // ---- utilidades ----
-const removeAccents = (s='') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const norm = (s='') => removeAccents(String(s).replace(/^\ufeff/, '')).trim().toLowerCase().replace(/\s+/g,' ');
-const detectSeparator = (buf) => {
-  const head = buf.toString('utf8').split(/\r?\n/)[0] || '';
-  const count = (ch) => (head.match(new RegExp(`\\${ch}`, 'g')) || []).length;
-  const semis = count(';'), commas = count(','), tabs = count('\t');
-  if (semis >= commas && semis >= tabs) return ';';
-  if (commas >= tabs) return ',';
-  return '\t';
-};
+const { norm, detectSeparator, normalizeLikertData } = require('../utils');
+const { config } = require('../config');
 
 // ---- DB / upload ----
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'stress_db',
-  password: 'admin123',
-  port: 5432,
+  user: config.database.user,
+  host: config.database.host,
+  database: config.database.database,
+  password: config.database.password,
+  port: config.database.port,
 });
 const upload = multer();
 
@@ -116,6 +108,48 @@ const specs = swaggerJsdoc({
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 app.get('/', (_req, res) => res.redirect('/api-docs'));
+
+// --- Normalizador a escala 1..5 para CSV en inglés ---
+const LIKERT_COLS = [
+  'palpitations','anxiety','sleep_problems','anxiety_duplicate',
+  'headaches','irritability','concentration_issues','sadness',
+  'illness','loneliness','academic_overload','competition',
+  'relationship_stress','professor_difficulty','work_environment',
+  'leisure_time','home_environment','low_confidence_performance',
+  'low_confidence_subjects','academic_conflict','class_attendance',
+  'weight_change','stress_type'
+];
+
+// ¿Debo escalar? (solo datasets en inglés)
+const shouldScaleTo1to5 = (src) =>
+  src === 'Stress_Dataset' || src === 'StressLevelDataset';
+
+// Reescala numéricos a 1..5 (redondeando) cuando vienen 0..10 o 0..100
+function scaleLikertTo1to5(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Number(String(raw).replace(',', '.'));
+  if (!Number.isFinite(n)) return raw;
+
+  // ya está en rango 1..5
+  if (n >= 1 && n <= 5) return Math.round(n);
+
+  let scaled;
+  if (n > 5 && n <= 10) {          // 0..10 -> 1..5
+    scaled = (n / 10) * 5;
+  } else if (n > 10 && n <= 100) { // 0..100 -> 1..5
+    scaled = (n / 100) * 5;
+  } else if (n > 100) {
+    scaled = 5;
+  } else if (n >= 0 && n < 1) {    // 0..1 (poco común) -> 1..5
+    scaled = n * 5;
+  } else {
+    scaled = n;
+  }
+
+  const r = Math.round(scaled);
+  return Math.max(1, Math.min(5, r));
+}
+
 
 
 
@@ -226,9 +260,46 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
             });
           }
 
+          // Aplicar normalización automática de datos Likert
+          const likertColumns = [
+            'palpitations', 'anxiety', 'sleep_problems', 'anxiety_duplicate',
+            'headaches', 'irritability', 'concentration_issues', 'sadness',
+            'illness', 'loneliness', 'academic_overload', 'competition',
+            'relationship_stress', 'professor_difficulty', 'work_environment',
+            'leisure_time', 'home_environment', 'low_confidence_performance',
+            'low_confidence_subjects', 'academic_conflict', 'class_attendance',
+            'weight_change', 'stress_type'
+          ];
+
+          const normalizationResult = normalizeLikertData(records, likertColumns);
+          if (normalizationResult.applied) {
+            console.log('Normalización aplicada:', {
+              totalRecords: normalizationResult.totalRecords,
+              totalNormalized: normalizationResult.totalNormalized,
+              columns: Object.keys(normalizationResult.columns).filter(col => 
+                normalizationResult.columns[col].normalized
+              )
+            });
+          }
+
           let inserted = 0;
 
           for (const row of records) {
+            let v = row[csvCol];
+
+           // edad como antes
+           if (dbCol === 'age') {
+            const n = parseInt(v, 10);
+           v = Number.isFinite(n) ? n : null;
+           }
+
+// 👇 nuevo: si es columna Likert y el archivo es inglés, escalar a 1..5
+  if (shouldScaleTo1to5(src) && LIKERT_COLS.includes(dbCol)) {
+  v = scaleLikertTo1to5(v);
+   }
+
+ cols.push(dbCol);
+  vals.push(v === '' ? null : v);
             if (isStressDataset) {
               // === Stress_Dataset.csv (inglés) ===
               const columnMapping = {
@@ -380,8 +451,16 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           await client.query('COMMIT');
           return res.status(200).json({
             message: 'Dataset uploaded and processed successfully',
-            fileType: `${src  }.csv`,
+            fileType: `${src}.csv`,
             recordsProcessed: inserted,
+            normalization: normalizationResult.applied ? {
+              applied: true,
+              totalNormalized: normalizationResult.totalNormalized,
+              normalizedColumns: Object.keys(normalizationResult.columns).filter(col => 
+                normalizationResult.columns[col].normalized
+              ),
+              details: normalizationResult.columns
+            } : { applied: false }
           });
 
         } catch (err) {
@@ -790,19 +869,26 @@ app.get('/api/compare/likert-ge4', async (req, res) => {
       'irritability','palpitations','sadness','anxiety'
     ];
 
-    // 1) Base: castear a int (1..5) y etiquetar grupo
     const baseSql = `
-      WITH base AS (
-        SELECT
-          CASE
-            WHEN source = 'Encuestas_UCaldas' THEN 'Universidad de Caldas'
-            ELSE 'Otras universidades'
-          END AS university_group,
-          ${items.map(k => `NULLIF(${k}, '')::int AS ${k}`).join(', ')}
-        FROM survey_responses
-      )
-      SELECT * FROM base;
-    `;
+  WITH base AS (
+    SELECT
+      CASE
+        WHEN lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas')
+             OR lower(source) LIKE '%caldas%'
+        THEN 'Universidad de Caldas'
+        ELSE 'Otras universidades'
+      END AS university_group,
+      NULLIF(sleep_problems,'')::int       AS sleep_problems,
+      NULLIF(headaches,'')::int            AS headaches,
+      NULLIF(concentration_issues,'')::int AS concentration_issues,
+      NULLIF(irritability,'')::int         AS irritability,
+      NULLIF(palpitations,'')::int         AS palpitations,
+      NULLIF(sadness,'')::int              AS sadness,
+      NULLIF(anxiety,'')::int              AS anxiety
+    FROM survey_responses
+  )
+  SELECT * FROM base;
+`
     const base = await client.query(baseSql);
 
     // 2) Agregar por grupo: total filas y conteo de >=4 por ítem
@@ -855,10 +941,15 @@ app.get('/api/factores-clave', async (req, res) => {
 
     // Agrupa por universidad
     const groups = [
-      { key: 'Universidad de Caldas', cond: 'source = \'Encuestas_UCaldas\'' },
-      { key: 'Otras universidades', cond: 'source <> \'Encuestas_UCaldas\' OR source IS NULL' }
+      { key: 'Universidad de Caldas',
+        cond:
+          "(lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
+          "OR lower(source) LIKE '%caldas%')" },
+      { key: 'Otras universidades',
+        cond:
+          "NOT (lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
+          "OR lower(source) LIKE '%caldas%')" }
     ];
-
     const resultados = [];
     for (const group of groups) {
       const factores = [];

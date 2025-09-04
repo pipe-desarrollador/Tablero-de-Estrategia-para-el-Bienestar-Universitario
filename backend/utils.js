@@ -193,6 +193,118 @@ const validateCSV = (buffer, minRows = 1) => {
   }
 };
 
+/**
+ * Detecta automáticamente la escala de datos Likert en un conjunto de valores
+ * @param {Array} values - Array de valores numéricos
+ * @returns {Object} Información sobre la escala detectada
+ * @example
+ * detectLikertScale([1, 2, 3, 4, 5]) // returns { min: 1, max: 5, scale: 5, needsNormalization: false }
+ * detectLikertScale([10, 20, 30, 40, 50]) // returns { min: 10, max: 50, scale: 50, needsNormalization: true }
+ */
+function detectLikertScale(values) {
+  const numericValues = values
+    .map(v => parseFloat(v))
+    .filter(v => !isNaN(v) && v !== null && v !== undefined);
+  
+  if (numericValues.length === 0) {
+    return { min: 1, max: 5, scale: 5, needsNormalization: false };
+  }
+  
+  const min = Math.min(...numericValues);
+  const max = Math.max(...numericValues);
+  const scale = max - min + 1;
+  
+  // Si ya está en escala 1-5, no necesita normalización
+  if (min >= 1 && max <= 5 && scale <= 5) {
+    return { min, max, scale, needsNormalization: false };
+  }
+  
+  return { min, max, scale, needsNormalization: true };
+}
+
+/**
+ * Normaliza un valor Likert de cualquier escala a la escala 1-5
+ * @param {number|string} value - Valor a normalizar
+ * @param {Object} scaleInfo - Información de la escala original
+ * @returns {number} Valor normalizado entre 1 y 5
+ * @example
+ * normalizeLikertValue(50, { min: 10, max: 50, scale: 41 }) // returns 5
+ * normalizeLikertValue(25, { min: 10, max: 50, scale: 41 }) // returns 2.5
+ */
+function normalizeLikertValue(value, scaleInfo) {
+  const numValue = parseFloat(value);
+  
+  if (isNaN(numValue) || numValue === null || numValue === undefined) {
+    return null;
+  }
+  
+  if (!scaleInfo.needsNormalization) {
+    return Math.max(1, Math.min(5, numValue));
+  }
+  
+  // Normalizar a escala 0-1 primero
+  const normalized = (numValue - scaleInfo.min) / (scaleInfo.max - scaleInfo.min);
+  
+  // Escalar a 1-5
+  const scaled = 1 + (normalized * 4);
+  
+  // Redondear a 1 decimal para mantener precisión
+  return Math.round(scaled * 10) / 10;
+}
+
+/**
+ * Normaliza todos los datos Likert en un conjunto de registros
+ * @param {Array} records - Array de registros CSV
+ * @param {Array} likertColumns - Array de nombres de columnas que contienen datos Likert
+ * @returns {Object} Información sobre la normalización aplicada
+ * @example
+ * normalizeLikertData(records, ['anxiety', 'stress_level']) 
+ * // returns { applied: true, columns: {...}, totalRecords: 100 }
+ */
+function normalizeLikertData(records, likertColumns) {
+  if (!records || records.length === 0 || !likertColumns || likertColumns.length === 0) {
+    return { applied: false, columns: {}, totalRecords: 0 };
+  }
+  
+  const normalizationInfo = {};
+  let totalNormalized = 0;
+  
+  // Primero, detectar la escala para cada columna
+  for (const column of likertColumns) {
+    const values = records
+      .map(record => record[column])
+      .filter(value => value !== null && value !== undefined && value !== '');
+    
+    if (values.length > 0) {
+      const scaleInfo = detectLikertScale(values);
+      normalizationInfo[column] = {
+        originalScale: scaleInfo,
+        normalized: false
+      };
+      
+      // Si necesita normalización, aplicarla
+      if (scaleInfo.needsNormalization) {
+        for (const record of records) {
+          if (record[column] !== null && record[column] !== undefined && record[column] !== '') {
+            const originalValue = record[column];
+            const normalizedValue = normalizeLikertValue(originalValue, scaleInfo);
+            record[column] = normalizedValue;
+            totalNormalized++;
+          }
+        }
+        normalizationInfo[column].normalized = true;
+      }
+    }
+  }
+  
+  return {
+    applied: Object.values(normalizationInfo).some(col => col.normalized),
+    columns: normalizationInfo,
+    totalRecords: records.length,
+    totalNormalized
+  };
+}
+
 module.exports = {
   removeAccents,
   norm,
@@ -207,5 +319,8 @@ module.exports = {
   calculatePercentage,
   roundToDecimals,
   createError,
-  validateCSV
+  validateCSV,
+  normalizeLikertValue,
+  detectLikertScale,
+  normalizeLikertData
 };

@@ -25,6 +25,12 @@ El sistema está compuesto por tres subsistemas principales:
    - Tablero visual e interactivo para la exploración y análisis de datos.
    - Visualizaciones claras y usables, aplicando principios de ergonomía y usabilidad.
 
+### Estilos y Usabilidad
+Un checklist de estilos y usabilidad se encuentra en `docs/style-checklist.md`.
+
+### Modelo Entidad-Relación (MER)
+El MER se encuentra en `docs/mer/` (añadir imagen `mer.png`).
+
 ## 🛠️ Tecnologías Utilizadas
 
 - **Node.js** y **Express.js** (Backend/API RESTful)
@@ -85,6 +91,7 @@ La API está documentada con Swagger y permite cargar archivos con la estructura
 - El sistema es visualmente claro, fácil de usar y aplica conceptos de ergonomía y usabilidad.
 - Se utiliza una metodología básica de desarrollo de sistemas de información, con planificación y seguimiento documentados.
 - Se emplean herramientas de versionamiento para el código y scripts de base de datos.
+- Flujo Git: `main` (producción), `develop` (integración), `feature/*` (nuevas funcionalidades). Se recomiendan Conventional Commits.
 - Se siguen estándares de codificación adecuados.
 - No se requiere inicio de sesión, autenticación de usuarios, roles ni perfiles.
 
@@ -96,8 +103,9 @@ La estructura de la base de datos y los archivos soportados se mantiene como en 
 
 - **Base URL:** `http://localhost:3000`
 - **Documentación:** `/api-docs`
-- **Endpoints principales:** `/api/upload-dataset`, `/api/stats`
+- **Endpoints principales:** `/api/upload-dataset`, `/api/stats`, `/api/factores-clave`, `/api/compare/likert-ge4`, `/api/what-if`
 - **Formato de respuesta:** JSON estándar
+- **Soporte:** Abre issues o contacta vía GitHub del proyecto.
 
 ## 📄 Licencia
 
