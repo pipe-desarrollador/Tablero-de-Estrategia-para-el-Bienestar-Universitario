@@ -2,6 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Estilos personalizados para mejorar la experiencia */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 bg-slate-600 text-white text-sm font-medium rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors duration-200;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6;
+  }
+  
+  /* Slider personalizado */
+  .slider {
+    @apply appearance-none bg-gray-200 rounded-lg outline-none;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    @apply appearance-none w-5 h-5 bg-blue-600 rounded-full cursor-pointer shadow-lg;
+  }
+  
+  .slider::-moz-range-thumb {
+    @apply w-5 h-5 bg-blue-600 rounded-full cursor-pointer border-0 shadow-lg;
+  }
+  
+  /* Animaciones suaves */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Mejoras para tablas responsive */
+  .table-responsive {
+    @apply overflow-x-auto shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg;
+  }
+  
+  /* Estados de carga mejorados */
+  .loading-skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+}
+
 /* App theming */
 .card {
   @apply bg-white rounded-2xl shadow-sm border border-slate-200;

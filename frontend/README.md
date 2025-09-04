@@ -17,15 +17,27 @@ npm run preview
 
 > Configura la URL del backend con `VITE_API_URL` en un archivo `.env` si lo deseas.
 
-## Endpoints esperados (sugerencia para tu backend con Swagger)
-- `GET /resumen` → { promedio, variacion, top[] }
-- `GET /serie` → [{ mes, actual, anterior }]
-- `GET /factores` → [{ nombre, impacto, prevalencia, poblacion }]
-- `POST /upload` → guarda datos de carga masiva
-- `GET /docs` → Swagger (OpenAPI)
+## Endpoints reales (Swagger en `/api-docs`)
+- `GET /api/stats` → métricas y promedios Likert; usado por Home.
+- `GET /api/compare/likert-ge4` → series para análisis comparativo (línea).
+- `GET /api/factores-clave` → categorías y series para factores clave (barras).
+- `POST /api/what-if` → simulación con filtros e intervenciones.
+- `POST /api/upload-dataset` → carga masiva CSV.
+- `GET /api/table-structure` → estructura de tabla.
+- `DELETE /api/clear-data` → limpiar base.
 
 ## Carga de archivos
-En **Reportes** puedes cargar un `.csv`. Se muestra de inmediato y puedes llamar al backend desde `postUploadCSV`.
+En **Reportes** puedes cargar un `.csv`. Se envía al backend con `uploadDataset(file)` y el servidor confirma tipo y registros procesados.
+
+## Manual de Usuario (básico)
+- **Requisitos previos**: navegador actualizado; archivo CSV con cabeceras compatibles.
+- **Pantalla principal**: módulos de Cargar CSV (Reportes), Análisis Comparativo, Factores Clave y Simulación What‑If.
+- **Uso**:
+  - Cargar CSV: selecciona archivo y pulsa “Subir”; verás confirmación.
+  - Análisis Comparativos: accede a “Análisis Comparativo” para ver gráficas dinámicas.
+  - Factores Clave: visualiza principales factores y métricas.
+  - What‑If: ajusta sliders y observa el recálculo del índice %≥4.
+- **Soporte**: API en `/api-docs` (Swagger). Contacto: ver GitHub del proyecto.
 
 ## Estándares y usabilidad
 - Paleta accesible, alto contraste, tipografía legible, componentes con sombras suaves.

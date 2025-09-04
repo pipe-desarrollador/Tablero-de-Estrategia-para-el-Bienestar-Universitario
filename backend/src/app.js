@@ -1,81 +1,55 @@
+// backend/src/app.js
 const express = require('express');
-const app = express(); // <-- CREA EL OBJETO app AQUÍ
-
-const port = 3000;
-
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-  // ...
-});
-
 const cors = require('cors');
-app.use(cors());
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-
 const { Pool } = require('pg');
 const multer = require('multer');
 const csv = require('csv-parser');
 const stream = require('stream');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const path = require('path');
 
-// server.js (arriba, antes de tus rutas)
+const app = express();              // ✅ crear la app aquí
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('.'));
 
+// ---- utilidades ----
+const { norm, detectSeparator, normalizeLikertData } = require('../utils');
+const { config } = require('../config');
 
+// ---- DB / upload ----
+const pool = new Pool({
+  user: config.database.user,
+  host: config.database.host,
+  database: config.database.database,
+  password: config.database.password,
+  port: config.database.port,
+});
+const upload = multer();
 
-const removeAccents = (s='') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const norm = (s='') =>
-  removeAccents(String(s).replace(/^\ufeff/, '')).trim().toLowerCase().replace(/\s+/g,' ');
-
-const detectSeparator = (buf) => {
-  const head = buf.toString('utf8').split(/\r?\n/)[0] || '';
-  const count = (ch) => (head.match(new RegExp(`\\${ch}`, 'g')) || []).length;
-  const semis = count(';'), commas = count(','), tabs = count('\t');
-  if (semis >= commas && semis >= tabs) return ';';
-  if (commas >= tabs) return ',';
-  return '\t';
-};
-
-
-
-console.log('Booting server from file:', __filename);
-console.log('Working directory (cwd):', process.cwd());
-
-// rutas de salud y depuración
+// ---- health/debug ----
 app.get('/ping', (req, res) => res.send('pong'));
-app.get('/_routes', (req, res) => {
-  const stack = (app._router && app._router.stack) ? app._router.stack : [];
+app.get('/_routes', (_req, res) => {
   const routes = [];
-  stack.forEach((m) => {
-    if (m.route && m.route.path) {
-      const methods = Object.keys(m.route.methods).join(',').toUpperCase();
-      routes.push({ methods, path: m.route.path });
+  const stack = app?._router?.stack ?? [];
+  stack.forEach(layer => {
+    if (layer.route) {
+      const path = layer.route.path;
+      const methods = Object.keys(layer.route.methods)
+        .filter(m => layer.route.methods[m])
+        .map(m => m.toUpperCase())
+        .sort()
+        .join(',');
+      routes.push({ methods, path });
     }
   });
   res.json(routes);
 });
 
 
-
-
-// Servir archivos estáticos
-app.use(express.static('.'));
-
-// Configuración de la base de datos PostgreSQL
-// Reemplaza los valores con los de tu configuración
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'stress_db',
-  password: 'admin123',
-  port: 5432,
-});
-
-// Configuración de Multer para la carga de archivos
-const upload = multer();
-
-// Configuración de Swagger
+// ---- Swagger ----
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -83,56 +57,25 @@ const swaggerOptions = {
       title: 'API de Dataset de Estrés Estudiantil',
       version: '1.0.0',
       description: 'API para cargar y gestionar datasets de estrés estudiantil en PostgreSQL',
-      contact: {
-        name: 'Soporte Técnico',
-        email: 'soporte@ejemplo.com'
-      }
+      contact: { name: 'Soporte Técnico', email: 'soporte@ejemplo.com' }
     },
-    servers: [
-      {
-        url: 'http://localhost:3000',
-        description: 'Servidor de desarrollo'
-      }
-    ],
+    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
     components: {
       schemas: {
         UploadResponse: {
           type: 'object',
           properties: {
-            message: {
-              type: 'string',
-              description: 'Mensaje de confirmación'
-            },
-            fileType: {
-              type: 'string',
-              description: 'Tipo de archivo detectado (Stress_Dataset.csv o StressLevelDataset.csv)'
-            },
-            recordsProcessed: {
-              type: 'integer',
-              description: 'Número de registros procesados'
-            }
+            message: { type: 'string' },
+            fileType: { type: 'string' },
+            recordsProcessed: { type: 'integer' }
           }
         },
-        Error: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'string',
-              description: 'Mensaje de error'
-            }
-          }
-        },
+        Error: { type: 'object', properties: { error: { type: 'string' } } },
         StatsResponse: {
           type: 'object',
           properties: {
-            surveyResponses: {
-              type: 'integer',
-              description: 'Número total de respuestas de encuestas'
-            },
-            message: {
-              type: 'string',
-              description: 'Mensaje informativo'
-            }
+            surveyResponses: { type: 'integer' },
+            message: { type: 'string' }
           }
         },
         TableStructureResponse: {
@@ -143,18 +86,9 @@ const swaggerOptions = {
               items: {
                 type: 'object',
                 properties: {
-                  column_name: {
-                    type: 'string',
-                    description: 'Nombre de la columna'
-                  },
-                  data_type: {
-                    type: 'string',
-                    description: 'Tipo de dato de la columna'
-                  },
-                  is_nullable: {
-                    type: 'string',
-                    description: 'Si la columna permite valores nulos'
-                  }
+                  column_name: { type: 'string' },
+                  data_type: { type: 'string' },
+                  is_nullable: { type: 'string' }
                 }
               }
             }
@@ -163,71 +97,62 @@ const swaggerOptions = {
       }
     }
   },
-  apis: ['./server.js']
 };
-
-const specs = swaggerJsdoc(swaggerOptions);
-
-// Lista de preguntas del archivo Stress_Dataset.csv
-const preguntas = [
-  "Have you recently experienced stress in your life?",
-  "Have you noticed a rapid heartbeat or palpitations?",
-  "Have you been dealing with anxiety or tension recently?",
-  "Do you face any sleep problems or difficulties falling asleep?",
-  "Have you been dealing with anxiety or tension recently?.1", // Nota: hay una columna duplicada
-  "Have you been getting headaches more often than usual?",
-  "Do you get irritated easily?",
-  "Do you have trouble concentrating on your academic tasks?",
-  "Have you been feeling sadness or low mood?",
-  "Have you been experiencing any illness or health issues?",
-  "Do you often feel lonely or isolated?",
-  "Do you feel overwhelmed with your academic workload?",
-  "Are you in competition with your peers, and does it affect you?",
-  "Do you find that your relationship often causes you stress?",
-  "Are you facing any difficulties with your professors or instructors?",
-  "Is your working environment unpleasant or stressful?",
-  "Do you struggle to find time for relaxation and leisure activities?",
-  "Is your hostel or home environment causing you difficulties?",
-  "Do you lack confidence in your academic performance?",
-  "Do you lack confidence in your choice of academic subjects?",
-  "Academic and extracurricular activities conflicting for you?",
-  "Do you attend classes regularly?",
-  "Have you gained/lost weight?",
-  "Which type of stress do you primarily experience?"
-];
-
-// Lista de preguntas del archivo StressLevelDataset.csv
-const preguntasStressLevel = [
-  "anxiety_level",
-  "self_esteem", 
-  "mental_health_history",
-  "depression",
-  "headache",
-  "blood_pressure",
-  "sleep_quality",
-  "breathing_problem",
-  "noise_level",
-  "living_conditions",
-  "safety",
-  "basic_needs",
-  "academic_performance",
-  "study_load",
-  "teacher_student_relationship",
-  "future_career_concerns",
-  "social_support",
-  "peer_pressure",
-  "extracurricular_activities",
-  "bullying",
-  "stress_level"
-];
-
-// Configurar Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-
-// Endpoint raíz
-app.get('/', (req, res) => {
-  res.redirect('/api-docs');
+const specs = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: { title: 'API de Dataset de Estrés Estudiantil', version: '1.0.0' },
+    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
+  },
+  apis: [path.join(__dirname, '**/*.js')], // 👈 escanea tus rutas
 });
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+app.get('/', (_req, res) => res.redirect('/api-docs'));
+
+// --- Normalizador a escala 1..5 para CSV en inglés ---
+const LIKERT_COLS = [
+  'palpitations','anxiety','sleep_problems','anxiety_duplicate',
+  'headaches','irritability','concentration_issues','sadness',
+  'illness','loneliness','academic_overload','competition',
+  'relationship_stress','professor_difficulty','work_environment',
+  'leisure_time','home_environment','low_confidence_performance',
+  'low_confidence_subjects','academic_conflict','class_attendance',
+  'weight_change','stress_type'
+];
+
+// ¿Debo escalar? (solo datasets en inglés)
+const shouldScaleTo1to5 = (src) =>
+  src === 'Stress_Dataset' || src === 'StressLevelDataset';
+
+// Reescala numéricos a 1..5 (redondeando) cuando vienen 0..10 o 0..100
+function scaleLikertTo1to5(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Number(String(raw).replace(',', '.'));
+  if (!Number.isFinite(n)) return raw;
+
+  // ya está en rango 1..5
+  if (n >= 1 && n <= 5) return Math.round(n);
+
+  let scaled;
+  if (n > 5 && n <= 10) {          // 0..10 -> 1..5
+    scaled = (n / 10) * 5;
+  } else if (n > 10 && n <= 100) { // 0..100 -> 1..5
+    scaled = (n / 100) * 5;
+  } else if (n > 100) {
+    scaled = 5;
+  } else if (n >= 0 && n < 1) {    // 0..1 (poco común) -> 1..5
+    scaled = n * 5;
+  } else {
+    scaled = n;
+  }
+
+  const r = Math.round(scaled);
+  return Math.max(1, Math.min(5, r));
+}
+
+
+
+
 
 
 /**
@@ -322,9 +247,9 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           // Ahora sí, define la etiqueta de origen
           const src =
             isStressDataset ? 'Stress_Dataset' :
-            isStressLevelDataset ? 'StressLevelDataset' :
-            isEncuestasUCaldas ? 'Encuestas_UCaldas' :
-            'Unknown';
+              isStressLevelDataset ? 'StressLevelDataset' :
+                isEncuestasUCaldas ? 'Encuestas_UCaldas' :
+                  'Unknown';
 
           console.log('Detected file type:', src, 'sep:', sep, 'headers:', headersAll);
 
@@ -335,9 +260,46 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
             });
           }
 
+          // Aplicar normalización automática de datos Likert
+          const likertColumns = [
+            'palpitations', 'anxiety', 'sleep_problems', 'anxiety_duplicate',
+            'headaches', 'irritability', 'concentration_issues', 'sadness',
+            'illness', 'loneliness', 'academic_overload', 'competition',
+            'relationship_stress', 'professor_difficulty', 'work_environment',
+            'leisure_time', 'home_environment', 'low_confidence_performance',
+            'low_confidence_subjects', 'academic_conflict', 'class_attendance',
+            'weight_change', 'stress_type'
+          ];
+
+          const normalizationResult = normalizeLikertData(records, likertColumns);
+          if (normalizationResult.applied) {
+            console.log('Normalización aplicada:', {
+              totalRecords: normalizationResult.totalRecords,
+              totalNormalized: normalizationResult.totalNormalized,
+              columns: Object.keys(normalizationResult.columns).filter(col => 
+                normalizationResult.columns[col].normalized
+              )
+            });
+          }
+
           let inserted = 0;
 
           for (const row of records) {
+            let v = row[csvCol];
+
+           // edad como antes
+           if (dbCol === 'age') {
+            const n = parseInt(v, 10);
+           v = Number.isFinite(n) ? n : null;
+           }
+
+// 👇 nuevo: si es columna Likert y el archivo es inglés, escalar a 1..5
+  if (shouldScaleTo1to5(src) && LIKERT_COLS.includes(dbCol)) {
+  v = scaleLikertTo1to5(v);
+   }
+
+ cols.push(dbCol);
+  vals.push(v === '' ? null : v);
             if (isStressDataset) {
               // === Stress_Dataset.csv (inglés) ===
               const columnMapping = {
@@ -489,8 +451,16 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           await client.query('COMMIT');
           return res.status(200).json({
             message: 'Dataset uploaded and processed successfully',
-            fileType: src + '.csv',
+            fileType: `${src}.csv`,
             recordsProcessed: inserted,
+            normalization: normalizationResult.applied ? {
+              applied: true,
+              totalNormalized: normalizationResult.totalNormalized,
+              normalizedColumns: Object.keys(normalizationResult.columns).filter(col => 
+                normalizationResult.columns[col].normalized
+              ),
+              details: normalizationResult.columns
+            } : { applied: false }
           });
 
         } catch (err) {
@@ -671,9 +641,9 @@ app.get('/api/data', async (req, res) => {
     if (genderRaw) {
       const g = genderRaw.toLowerCase();
       if (['f', 'femenino', 'female', 'mujer'].includes(g)) {
-        where.push(`(gender ILIKE 'F%' OR LOWER(gender) IN ('female','mujer'))`);
+        where.push('(gender ILIKE \'F%\' OR LOWER(gender) IN (\'female\',\'mujer\'))');
       } else if (['m', 'masculino', 'male', 'hombre'].includes(g)) {
-        where.push(`(gender ILIKE 'M%' OR LOWER(gender) IN ('male','hombre'))`);
+        where.push('(gender ILIKE \'M%\' OR LOWER(gender) IN (\'male\',\'hombre\'))');
       } else {
         params.push(`%${genderRaw}%`);
         where.push(`gender ILIKE $${params.length}`);
@@ -878,12 +848,10 @@ app.get('/api/stats', async (req, res) => {
 
 
 
-// (tu /api/stats ya lo tienes; si no, pega el que hicimos antes)
-
-console.log(`  GET  /api/data - List data (sanity)`);
+console.log('  GET  /api/data - List data (sanity)');
 
 
-const path = require('path');
+
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
@@ -901,19 +869,26 @@ app.get('/api/compare/likert-ge4', async (req, res) => {
       'irritability','palpitations','sadness','anxiety'
     ];
 
-    // 1) Base: castear a int (1..5) y etiquetar grupo
     const baseSql = `
-      WITH base AS (
-        SELECT
-          CASE
-            WHEN source = 'Encuestas_UCaldas' THEN 'Universidad de Caldas'
-            ELSE 'Otras universidades'
-          END AS university_group,
-          ${items.map(k => `NULLIF(${k}, '')::int AS ${k}`).join(', ')}
-        FROM survey_responses
-      )
-      SELECT * FROM base;
-    `;
+  WITH base AS (
+    SELECT
+      CASE
+        WHEN lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas')
+             OR lower(source) LIKE '%caldas%'
+        THEN 'Universidad de Caldas'
+        ELSE 'Otras universidades'
+      END AS university_group,
+      NULLIF(sleep_problems,'')::int       AS sleep_problems,
+      NULLIF(headaches,'')::int            AS headaches,
+      NULLIF(concentration_issues,'')::int AS concentration_issues,
+      NULLIF(irritability,'')::int         AS irritability,
+      NULLIF(palpitations,'')::int         AS palpitations,
+      NULLIF(sadness,'')::int              AS sadness,
+      NULLIF(anxiety,'')::int              AS anxiety
+    FROM survey_responses
+  )
+  SELECT * FROM base;
+`
     const base = await client.query(baseSql);
 
     // 2) Agregar por grupo: total filas y conteo de >=4 por ítem
@@ -966,10 +941,15 @@ app.get('/api/factores-clave', async (req, res) => {
 
     // Agrupa por universidad
     const groups = [
-      { key: 'Universidad de Caldas', cond: "source = 'Encuestas_UCaldas'" },
-      { key: 'Otras universidades', cond: "source <> 'Encuestas_UCaldas' OR source IS NULL" }
+      { key: 'Universidad de Caldas',
+        cond:
+          "(lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
+          "OR lower(source) LIKE '%caldas%')" },
+      { key: 'Otras universidades',
+        cond:
+          "NOT (lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
+          "OR lower(source) LIKE '%caldas%')" }
     ];
-
     const resultados = [];
     for (const group of groups) {
       const factores = [];
@@ -1064,7 +1044,7 @@ app.post('/api/what-if', async (req, res) => {
       tutoria_academica: { concentration_issues: 0.6, academic_overload: 0.4 },
       salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
       higiene_sueno:     { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 }, // alias
-     apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
+      apoyo_financiero:  { headaches: 0.4, palpitations: 0.3, irritability: 0.3 },
     };
 
     const body = req.body || {};
@@ -1079,18 +1059,18 @@ app.post('/api/what-if', async (req, res) => {
     // University group
     const ug = (filters.university_group || 'todas').toLowerCase();
     if (ug === 'ucaldas') {
-      where.push(`source = 'Encuestas_UCaldas'`);
+      where.push('source = \'Encuestas_UCaldas\'');
     } else if (ug === 'otras') {
-      where.push(`(source <> 'Encuestas_UCaldas' OR source IS NULL)`);
+      where.push('(source <> \'Encuestas_UCaldas\' OR source IS NULL)');
     }
 
     // Género (flexible)
     const g = (filters.gender || '').toLowerCase().trim();
     if (g) {
       if (['f','femenino','female','mujer'].includes(g)) {
-        where.push(`(gender ILIKE 'F%' OR LOWER(gender) IN ('female','mujer'))`);
+        where.push('(gender ILIKE \'F%\' OR LOWER(gender) IN (\'female\',\'mujer\'))');
       } else if (['m','masculino','male','hombre'].includes(g)) {
-        where.push(`(gender ILIKE 'M%' OR LOWER(gender) IN ('male','hombre'))`);
+        where.push('(gender ILIKE \'M%\' OR LOWER(gender) IN (\'male\',\'hombre\'))');
       } else {
         params.push(`%${filters.gender}%`);
         where.push(`gender ILIKE $${params.length}`);
@@ -1180,17 +1160,21 @@ app.post('/api/what-if', async (req, res) => {
     client.release();
   }
 });
+app.delete('/api/clear-data', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('TRUNCATE survey_responses RESTART IDENTITY');
+    res.json({ message: 'Database cleared successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
 
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-  console.log(`Available endpoints:`);
-  console.log(`  POST /api/upload-dataset - Upload CSV file`);
-  console.log(`  GET  /api/stats - Get database statistics`);
-  console.log(`  DELETE /api/clear-data - Clear database`);
-  console.log(`  GET  /api-docs - Swagger API Documentation`);
-});
+module.exports = app;
