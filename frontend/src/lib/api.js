@@ -98,6 +98,41 @@ export async function postWhatIf(
   return okJSON(res);
 }
 
+// === Simulaciones Bayesianas ===
+export async function postWhatIfBayesian(
+  { interventions = {}, target = 'wellbeing_index', includeExplanation = true } = {},
+  { signal } = {}
+) {
+  const res = await fetch(`${API_URL}/api/what-if-bayesian`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interventions, target, includeExplanation }),
+    signal,
+  });
+  return okJSON(res);
+}
+
+export async function postWhatIfBayesianFull(
+  { interventions = {} } = {},
+  { signal } = {}
+) {
+  const res = await fetch(`${API_URL}/api/what-if-bayesian-full`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interventions }),
+    signal,
+  });
+  return okJSON(res);
+}
+
+export async function getBayesianStats({ signal } = {}) {
+  const res = await fetch(`${API_URL}/api/bayesian-stats`, {
+    method: 'GET',
+    signal,
+  });
+  return okJSON(res);
+}
+
 
 
 // Mapeo de claves Likert -> etiquetas

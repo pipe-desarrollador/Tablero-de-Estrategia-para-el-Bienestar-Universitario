@@ -9,6 +9,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const path = require('path');
 
+
 const app = express();              // ✅ crear la app aquí
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -18,6 +19,33 @@ app.use(express.static('.'));
 // ---- utilidades ----
 const { norm, detectSeparator, normalizeLikertData } = require('../utils');
 const { config } = require('../config');
+
+// ---- Helper para respuestas JSON estandarizadas ----
+const sendResponse = (res, success, message, data = null, statusCode = 200) => {
+  const response = {
+    success,
+    message
+  };
+  
+  if (data !== null) {
+    response.data = data;
+  }
+  
+  return res.status(statusCode).json(response);
+};
+
+const sendError = (res, message, statusCode = 500, error = null) => {
+  const response = {
+    success: false,
+    message
+  };
+  
+  if (error) {
+    response.error = error;
+  }
+  
+  return res.status(statusCode).json(response);
+};
 
 // ---- DB / upload ----
 const pool = new Pool({
@@ -99,11 +127,7 @@ const swaggerOptions = {
   },
 };
 const specs = swaggerJsdoc({
-  definition: {
-    openapi: '3.0.0',
-    info: { title: 'API de Dataset de Estrés Estudiantil', version: '1.0.0' },
-    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
-  },
+  definition: swaggerOptions.definition, // 👈 usar la configuración completa con esquemas
   apis: [path.join(__dirname, '**/*.js')], // 👈 escanea tus rutas
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
@@ -201,7 +225,7 @@ function scaleLikertTo1to5(raw) {
 
 app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No file part in the request' });
+    return sendError(res, 'No file part in the request', 400);
   }
 
   const client = await pool.connect();
@@ -220,7 +244,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
       .on('end', async () => {
         try {
           if (records.length === 0) {
-            return res.status(400).json({ error: 'CSV vacío' });
+            return sendError(res, 'CSV vacío', 400);
           }
 
           await client.query('BEGIN');
@@ -255,9 +279,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
 
           if (src === 'Unknown') {
             await client.query('ROLLBACK');
-            return res.status(400).json({
-              error: `Formato de CSV no reconocido (sep="${sep}"). Verifica cabeceras/separador.`,
-            });
+            return sendError(res, `Formato de CSV no reconocido (sep="${sep}"). Verifica cabeceras/separador.`, 400);
           }
 
           // Aplicar normalización automática de datos Likert
@@ -285,21 +307,6 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           let inserted = 0;
 
           for (const row of records) {
-            let v = row[csvCol];
-
-           // edad como antes
-           if (dbCol === 'age') {
-            const n = parseInt(v, 10);
-           v = Number.isFinite(n) ? n : null;
-           }
-
-// 👇 nuevo: si es columna Likert y el archivo es inglés, escalar a 1..5
-  if (shouldScaleTo1to5(src) && LIKERT_COLS.includes(dbCol)) {
-  v = scaleLikertTo1to5(v);
-   }
-
- cols.push(dbCol);
-  vals.push(v === '' ? null : v);
             if (isStressDataset) {
               // === Stress_Dataset.csv (inglés) ===
               const columnMapping = {
@@ -449,8 +456,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           }
 
           await client.query('COMMIT');
-          return res.status(200).json({
-            message: 'Dataset uploaded and processed successfully',
+          return sendResponse(res, true, 'Dataset uploaded and processed successfully', {
             fileType: `${src}.csv`,
             recordsProcessed: inserted,
             normalization: normalizationResult.applied ? {
@@ -466,7 +472,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
         } catch (err) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('Error processing file:', err);
-          return res.status(500).json({ error: err.message });
+          return sendError(res, 'Error processing file', 500, err.message);
         } finally {
           client.release();
         }
@@ -475,7 +481,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
   } catch (outerErr) {
     client.release();
     console.error(outerErr);
-    return res.status(500).json({ error: outerErr.message });
+    return sendError(res, 'Error processing file', 500, outerErr.message);
   }
 });
 
@@ -529,11 +535,11 @@ app.get('/api/table-structure', async (req, res) => {
       ORDER BY ordinal_position
     `);
     
-    res.json({
+    return sendResponse(res, true, 'Table structure retrieved successfully', {
       survey_responses: surveyColumns.rows
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return sendError(res, 'Error retrieving table structure', 500, error.message);
   } finally {
     client.release();
   }
@@ -687,7 +693,7 @@ app.get('/api/data', async (req, res) => {
     ]);
 
     const total = countRes.rows[0].total;
-    res.json({
+    return sendResponse(res, true, 'Data retrieved successfully', {
       data: dataRes.rows,
       meta: {
         page,
@@ -706,7 +712,7 @@ app.get('/api/data', async (req, res) => {
     });
   } catch (e) {
     console.error('Error en GET /api/data:', e);
-    res.status(500).json({ message: 'Error obteniendo datos', error: e.message });
+    return sendError(res, 'Error obteniendo datos', 500, e.message);
   } finally {
     client.release();
   }
@@ -823,8 +829,7 @@ app.get('/api/stats', async (req, res) => {
       qTotal, qAge, qByGender, qByStress, qLikert, qCoverage
     ]);
 
-    res.json({
-      status: 'success',
+    return sendResponse(res, true, 'Statistics retrieved successfully', {
       filters: {
         gender: gender || null,
         stress_type: stressType || null,
@@ -840,7 +845,7 @@ app.get('/api/stats', async (req, res) => {
     });
   } catch (e) {
     console.error('GET /api/stats error:', e);
-    res.status(500).json({ status: 'error', message: 'Error obteniendo estadísticas', error: e.message });
+    return sendError(res, 'Error obteniendo estadísticas', 500, e.message);
   } finally {
     client.release();
   }
@@ -923,10 +928,10 @@ app.get('/api/compare/likert-ge4', async (req, res) => {
       }))
     }));
 
-    res.json({ series });
+    return sendResponse(res, true, 'Comparison data retrieved successfully', { series });
   } catch (e) {
     console.error('GET /api/compare/likert-ge4 error:', e);
-    res.status(500).json({ error: e.message });
+    return sendError(res, 'Error retrieving comparison data', 500, e.message);
   } finally {
     client.release();
   }
@@ -974,10 +979,10 @@ app.get('/api/factores-clave', async (req, res) => {
       });
     }
 
-    res.json({ resultados });
+    return sendResponse(res, true, 'Key factors data retrieved successfully', { resultados });
   } catch (e) {
     console.error('GET /api/factores-clave error:', e);
-    res.status(500).json({ error: e.message });
+    return sendError(res, 'Error retrieving key factors data', 500, e.message);
   } finally {
     client.release();
   }
@@ -1039,7 +1044,7 @@ app.post('/api/what-if', async (req, res) => {
       anxiety: 'Ansiedad'
     };
 
-    // 1) Intervenciones y pesos por ítem
+    // 1) Intervenciones y pesos por ítem (SISTEMA ORIGINAL)
     const EFFECT_MAP = {
       tutoria_academica: { concentration_issues: 0.6, academic_overload: 0.4 },
       salud_mental:      { anxiety: 0.5, sadness: 0.3, sleep_problems: 0.2 },
@@ -1140,8 +1145,7 @@ app.post('/api/what-if', async (req, res) => {
     const baseIndex = mean(baseline.map(b => b.pct_ge4));
     const predIndex = mean(scenario.map(s => s.predicted.pct_ge4));
 
-    res.json({
-      status: 'success',
+    return sendResponse(res, true, 'What-if simulation completed successfully', {
       meta: { filters, effectiveness, interventions },
       baseline: {
         index_pct_ge4: baseIndex,
@@ -1155,7 +1159,7 @@ app.post('/api/what-if', async (req, res) => {
     });
   } catch (e) {
     console.error('POST /api/what-if error:', e);
-    res.status(500).json({ status: 'error', message: e.message });
+    return sendError(res, 'Error in what-if simulation', 500, e.message);
   } finally {
     client.release();
   }
@@ -1164,17 +1168,18 @@ app.delete('/api/clear-data', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('TRUNCATE survey_responses RESTART IDENTITY');
-    res.json({ message: 'Database cleared successfully' });
+    return sendResponse(res, true, 'Database cleared successfully');
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return sendError(res, 'Error clearing database', 500, e.message);
   } finally {
     client.release();
   }
 });
 
 
+
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not Found', path: req.path });
+  return sendError(res, 'Endpoint not found', 404, req.path);
 });
 
 module.exports = app;

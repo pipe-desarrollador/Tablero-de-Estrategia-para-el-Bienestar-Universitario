@@ -1,8 +1,11 @@
 // /src/pages/Simulaciones.jsx
 // Descripción: Simulación What‑If con intervenciones y filtros opcionales.
 import { useEffect, useState } from 'react';
-import { postWhatIf } from '../lib/api.js';
+import { postWhatIf, postWhatIfBayesian, postWhatIfBayesianFull } from '../lib/api.js';
 import ContextualHelp from '../components/ContextualHelp.jsx';
+import BayesianExplanation from '../components/BayesianExplanation.jsx';
+import BayesianMathExplanation from '../components/BayesianMathExplanation.jsx';
+import RealTimeBayesianAnalysis from '../components/RealTimeBayesianAnalysis.jsx';
 
 export default function Simulaciones() {
   const [tutoria, setTutoria]   = useState(0);
@@ -16,6 +19,14 @@ export default function Simulaciones() {
   const [err, setErr]           = useState('');
   const [baseline, setBaseline] = useState(null);
   const [scenario, setScenario] = useState(null);
+
+  // Estados para simulación bayesiana
+  const [bayesianMode, setBayesianMode] = useState(false);
+  const [bayesianTarget, setBayesianTarget] = useState('wellbeing_index');
+  const [bayesianLoading, setBayesianLoading] = useState(false);
+  const [bayesianError, setBayesianError] = useState('');
+  const [bayesianResult, setBayesianResult] = useState(null);
+  const [fullSimulation, setFullSimulation] = useState(false);
 
   // Llama al backend cuando cambian sliders (debounce 300ms)
   useEffect(() => {
@@ -51,6 +62,37 @@ export default function Simulaciones() {
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [tutoria, sueno, finanzas, eff, grupo]);
 
+  // Función para ejecutar simulación bayesiana
+  const runBayesianSimulation = async () => {
+    setBayesianError('');
+    setBayesianLoading(true);
+    setBayesianResult(null);
+
+    try {
+      const interventions = {};
+      if (tutoria > 0) interventions.tutoria_academica = `${tutoria}%`;
+      if (sueno > 0) interventions.salud_mental = `${sueno}%`;
+      if (finanzas > 0) interventions.apoyo_financiero = `${finanzas}%`;
+
+      let result;
+      if (fullSimulation) {
+        result = await postWhatIfBayesianFull({ interventions });
+      } else {
+        result = await postWhatIfBayesian({ 
+          interventions, 
+          target: bayesianTarget, 
+          includeExplanation: true 
+        });
+      }
+      
+      setBayesianResult(result);
+    } catch (error) {
+      setBayesianError(error.message || 'Error en simulación bayesiana');
+    } finally {
+      setBayesianLoading(false);
+    }
+  };
+
   const baseVal = baseline?.index_pct_ge4 ?? null;
   const scenVal = scenario?.index_pct_ge4 ?? null;
   const delta   = (baseVal != null && scenVal != null) ? (scenVal - baseVal) : null;
@@ -78,6 +120,11 @@ export default function Simulaciones() {
             <option value="otras">Otras universidades</option>
           </select>
         </div>
+      </div>
+
+      {/* Explicación Matemática Bayesiana */}
+      <div className="mb-6">
+        <BayesianMathExplanation />
       </div>
 
       <ContextualHelp helpId="simulation-slider">
@@ -141,6 +188,17 @@ export default function Simulaciones() {
         </div>
       </ContextualHelp>
 
+      {/* Análisis Bayesiano en Tiempo Real */}
+      <RealTimeBayesianAnalysis
+        tutoria={tutoria}
+        sueno={sueno}
+        finanzas={finanzas}
+        eff={eff}
+        scenarioValue={scenVal}
+        baselineValue={baseVal}
+        delta={delta}
+      />
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6">
         <label className="block font-medium text-slate-800 text-sm sm:text-base mb-3">
           Efectividad global del modelo
@@ -160,6 +218,8 @@ export default function Simulaciones() {
           <span className="text-xs sm:text-sm text-slate-600">100%</span>
         </div>
       </div>
+
+    
 
       <ContextualHelp helpId="baseline-scenario">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
@@ -186,21 +246,7 @@ export default function Simulaciones() {
         </div>
       </ContextualHelp>
 
-      {err && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex">
-            <div className="text-red-600">
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error en simulación</h3>
-              <p className="text-sm text-red-700 mt-1">{err}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      
       
       <div className="text-slate-500 text-xs sm:text-sm bg-slate-50 rounded-lg p-3">
         <strong>Fuente:</strong> <code className="bg-white px-2 py-1 rounded text-xs">/api/what-if</code>
