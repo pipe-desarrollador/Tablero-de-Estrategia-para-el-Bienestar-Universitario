@@ -52,8 +52,8 @@ El MER se encuentra en `docs/mer/` (añadir imagen `mer.png`).
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone https://github.com/pipe-desarrollador/Tablero-de-Estrategia-para-el-Bienestar-Universitario.git
-    cd Tablero-de-Estrategia-para-el-Bienestar-Universitario
+   git clone [URL-REPOSITORIO]
+    cd [URL-REPOSITORIO]
 
    ```
 
