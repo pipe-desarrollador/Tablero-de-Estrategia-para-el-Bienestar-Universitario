@@ -7,6 +7,7 @@ const BayesianMathExplanation = ({
   target = 'wellbeing_index',
   interventions = {} 
 }) => {
+  // Fix: Validación robusta para evitar errores de undefined - v2.0
   const [showExplanation, setShowExplanation] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [realData, setRealData] = useState(null);
@@ -20,26 +21,33 @@ const BayesianMathExplanation = ({
       setDataError('');
       try {
         const response = await getBayesianStats();
-        if (response.status === 'success') {
+        if (response && response.status === 'success') {
           // Validar que los datos sean apropiados para el análisis bayesiano
           const stats = response.stats;
-          const isValidForBayesian = 
-            stats.probabilities.P_A > 0.1 && stats.probabilities.P_A < 0.9 && // Entre 10% y 90%
-            stats.probabilities.P_B > 0.1 && stats.probabilities.P_B < 0.9 && // Entre 10% y 90%
-            stats.probabilities.P_B_given_A > 0.1 && stats.probabilities.P_B_given_A < 0.9; // Entre 10% y 90%
-          
-          if (isValidForBayesian) {
-            setRealData(stats);
+          if (stats && stats.probabilities) {
+            const isValidForBayesian = 
+              stats.probabilities.P_A > 0.1 && stats.probabilities.P_A < 0.9 && // Entre 10% y 90%
+              stats.probabilities.P_B > 0.1 && stats.probabilities.P_B < 0.9 && // Entre 10% y 90%
+              stats.probabilities.P_B_given_A > 0.1 && stats.probabilities.P_B_given_A < 0.9; // Entre 10% y 90%
+            
+            if (isValidForBayesian) {
+              setRealData(stats);
+            } else {
+              setDataError('Datos reales no válidos para análisis bayesiano');
+              setRealData(null);
+            }
           } else {
-            setDataError('(usando datos simulados para demostración y prueba de concepto)');
+            setDataError('Estructura de datos incorrecta');
             setRealData(null);
           }
         } else {
-          setDataError('Error al cargar datos reales');
+          setDataError('Error al cargar datos reales del servidor');
+          setRealData(null);
         }
       } catch (error) {
-        setDataError('Error de conexión al cargar datos');
+        setDataError('Error de conexión al cargar datos reales');
         console.error('Error cargando estadísticas bayesianas:', error);
+        setRealData(null);
       } finally {
         setLoadingData(false);
       }
@@ -58,10 +66,24 @@ const BayesianMathExplanation = ({
 
   // Usar datos reales si están disponibles, sino usar datos de ejemplo
   const currentData = realData ? realData.probabilities : exampleData;
-  const totalStudents = realData ? realData.total_students : 1000;
-  const highWellbeingCount = realData ? realData.high_wellbeing : Math.round(1000 * exampleData.P_A);
-  const goodTutoringCount = realData ? realData.good_tutoring : Math.round(1000 * exampleData.P_B);
-  const highWellbeingWithGoodTutoringCount = realData ? realData.high_wellbeing_with_good_tutoring : Math.round(highWellbeingCount * exampleData.P_B_given_A);
+  
+  // Validación robusta para currentData
+  const safeCurrentData = {
+    P_A: Number(currentData?.P_A) || 0.3,
+    P_B: Number(currentData?.P_B) || 0.4,
+    P_B_given_A: Number(currentData?.P_B_given_A) || 0.6,
+    P_A_given_B: Number(currentData?.P_A_given_B) || 0.5
+  };
+  const totalStudents = realData ? (realData.sample_size || realData.total_students || 1000) : 1000;
+  const highWellbeingCount = realData ? (realData.high_wellbeing || Math.round(totalStudents * safeCurrentData.P_A)) : Math.round(1000 * exampleData.P_A);
+  const goodTutoringCount = realData ? (realData.good_tutoring || Math.round(totalStudents * safeCurrentData.P_B)) : Math.round(1000 * exampleData.P_B);
+  const highWellbeingWithGoodTutoringCount = realData ? (realData.high_wellbeing_with_good_tutoring || Math.round(highWellbeingCount * safeCurrentData.P_B_given_A)) : Math.round(highWellbeingCount * exampleData.P_B_given_A);
+
+  // Validación adicional para evitar errores
+  const safeTotalStudents = Number(totalStudents) || 1000;
+  const safeHighWellbeingCount = Number(highWellbeingCount) || 0;
+  const safeGoodTutoringCount = Number(goodTutoringCount) || 0;
+  const safeHighWellbeingWithGoodTutoringCount = Number(highWellbeingWithGoodTutoringCount) || 0;
 
   const steps = [
     {
@@ -73,25 +95,25 @@ const BayesianMathExplanation = ({
     {
       title: "📊 Datos que conocemos",
       content: realData ? 
-        `Basándonos en los datos reales de ${totalStudents.toLocaleString()} estudiantes de la universidad:` :
-        `Basándonos en datos simulados representativos (${totalStudents.toLocaleString()} estudiantes):`,
+        `Basándonos en los datos simulados de ${safeTotalStudents.toLocaleString()} estudiantes de la universidad:` :
+        `Basándonos en datos simulados representativos (${safeTotalStudents.toLocaleString()} estudiantes):`,
       data: [
         { 
           label: "Estudiantes con alto bienestar (≤2 síntomas de estrés)", 
-          value: `${(currentData.P_A * 100).toFixed(1)}%`, 
-          count: `${highWellbeingCount.toLocaleString()} estudiantes`,
+          value: `${(safeCurrentData.P_A * 100).toFixed(1)}%`, 
+          count: `${safeHighWellbeingCount.toLocaleString()} estudiantes`,
           color: "bg-green-100 text-green-800" 
         },
         { 
           label: "Estudiantes con buena tutoría (sin dificultades con profesores)", 
-          value: `${(currentData.P_B * 100).toFixed(1)}%`, 
-          count: `${goodTutoringCount.toLocaleString()} estudiantes`,
+          value: `${(safeCurrentData.P_B * 100).toFixed(1)}%`, 
+          count: `${safeGoodTutoringCount.toLocaleString()} estudiantes`,
           color: "bg-blue-100 text-blue-800" 
         },
         { 
           label: "De los que tienen alto bienestar, cuántos tienen buena tutoría", 
-          value: `${(currentData.P_B_given_A * 100).toFixed(1)}%`, 
-          count: `${highWellbeingWithGoodTutoringCount.toLocaleString()} estudiantes`,
+          value: `${(safeCurrentData.P_B_given_A * 100).toFixed(1)}%`, 
+          count: `${safeHighWellbeingWithGoodTutoringCount.toLocaleString()} estudiantes`,
           color: "bg-purple-100 text-purple-800" 
         }
       ]
@@ -99,17 +121,17 @@ const BayesianMathExplanation = ({
     {
       title: "🧮 Aplicando la Fórmula de Bayes",
       content: "Usamos la fórmula: P(A|B) = P(B|A) × P(A) / P(B)",
-      formula: `P(Alto Bienestar | Buena Tutoría) = (${currentData.P_B_given_A.toFixed(3)} × ${currentData.P_A.toFixed(3)}) / ${currentData.P_B.toFixed(3)}`,
-      calculation: `= ${(currentData.P_B_given_A * currentData.P_A).toFixed(3)} / ${currentData.P_B.toFixed(3)} = ${currentData.P_A_given_B.toFixed(3)} = ${(currentData.P_A_given_B * 100).toFixed(1)}%`,
-      explanation: `Esto significa que si un estudiante tiene buena tutoría, hay un ${(currentData.P_A_given_B * 100).toFixed(1)}% de probabilidad de que tenga alto bienestar.`
+      formula: `P(Alto Bienestar | Buena Tutoría) = (${safeCurrentData.P_B_given_A.toFixed(3)} × ${safeCurrentData.P_A.toFixed(3)}) / ${safeCurrentData.P_B.toFixed(3)}`,
+      calculation: `= ${(safeCurrentData.P_B_given_A * safeCurrentData.P_A).toFixed(3)} / ${safeCurrentData.P_B.toFixed(3)} = ${safeCurrentData.P_A_given_B.toFixed(3)} = ${(safeCurrentData.P_A_given_B * 100).toFixed(1)}%`,
+      explanation: `Esto significa que si un estudiante tiene buena tutoría, hay un ${(safeCurrentData.P_A_given_B * 100).toFixed(1)}% de probabilidad de que tenga alto bienestar.`
     },
     {
       title: "🎯 Interpretación Práctica",
       content: "¿Qué significa este resultado?",
       insights: [
-        `Sin información sobre relaciones con profesores, solo ${(currentData.P_A * 100).toFixed(1)}% de estudiantes tienen alto bienestar`,
-        `Con buenas relaciones con profesores, la probabilidad sube a ${(currentData.P_A_given_B * 100).toFixed(1)}%`,
-        `Esto representa una mejora del ${(((currentData.P_A_given_B - currentData.P_A) / currentData.P_A) * 100).toFixed(0)}% en las probabilidades`,
+        `Sin información sobre relaciones con profesores, solo ${(safeCurrentData.P_A * 100).toFixed(1)}% de estudiantes tienen alto bienestar`,
+        `Con buenas relaciones con profesores, la probabilidad sube a ${(safeCurrentData.P_A_given_B * 100).toFixed(1)}%`,
+        `Esto representa una mejora del ${(((safeCurrentData.P_A_given_B - safeCurrentData.P_A) / safeCurrentData.P_A) * 100).toFixed(0)}% en las probabilidades`,
         "Las buenas relaciones con profesores SÍ tienen un impacto positivo significativo en el bienestar estudiantil"
       ]
     }
@@ -176,10 +198,10 @@ const BayesianMathExplanation = ({
             <p className="text-sm text-blue-600 mt-1">📊 Cargando datos reales...</p>
           )}
           {dataError && (
-            <p className="text-sm text-orange-600 mt-1">⚠️ {dataError}</p>
+            <p className="text-sm text-orange-600 mt-1">⚠️ {dataError} - Usando datos simulados para demostración</p>
           )}
           {realData && !loadingData && (
-            <p className="text-sm text-green-600 mt-1">✅ Datos reales de {totalStudents.toLocaleString()} estudiantes</p>
+            <p className="text-sm text-green-600 mt-1">✅ Datos simulados de {safeTotalStudents.toLocaleString()} estudiantes</p>
           )}
           {!realData && !loadingData && !dataError && (
             <p className="text-sm text-blue-600 mt-1">📊 Usando datos simulados para demostración</p>

@@ -1,7 +1,7 @@
 // /src/pages/Simulaciones.jsx
 // Descripción: Simulación What‑If con intervenciones y filtros opcionales.
 import { useEffect, useState } from 'react';
-import { postWhatIf, postWhatIfBayesian, postWhatIfBayesianFull } from '../lib/api.js';
+import { postWhatIf } from '../lib/api.js';
 import ContextualHelp from '../components/ContextualHelp.jsx';
 import BayesianExplanation from '../components/BayesianExplanation.jsx';
 import BayesianMathExplanation from '../components/BayesianMathExplanation.jsx';
@@ -20,13 +20,6 @@ export default function Simulaciones() {
   const [baseline, setBaseline] = useState(null);
   const [scenario, setScenario] = useState(null);
 
-  // Estados para simulación bayesiana
-  const [bayesianMode, setBayesianMode] = useState(false);
-  const [bayesianTarget, setBayesianTarget] = useState('wellbeing_index');
-  const [bayesianLoading, setBayesianLoading] = useState(false);
-  const [bayesianError, setBayesianError] = useState('');
-  const [bayesianResult, setBayesianResult] = useState(null);
-  const [fullSimulation, setFullSimulation] = useState(false);
 
   // Llama al backend cuando cambian sliders (debounce 300ms)
   useEffect(() => {
@@ -50,10 +43,14 @@ export default function Simulaciones() {
     const timer = setTimeout(async () => {
       try {
         const res = await postWhatIf(payload, { signal: ctrl.signal });
-        setBaseline(res.baseline ?? null);
-        setScenario(res.scenario ?? null);
+        console.log('What-if response:', res); // Debug log
+        setBaseline(res.data?.baseline ?? null);
+        setScenario(res.data?.scenario ?? null);
       } catch (e) {
-        if (e.name !== 'AbortError') setErr(e.message || 'Error llamando a /api/what-if');
+        if (e.name !== 'AbortError') {
+          console.error('What-if error:', e); // Debug log
+          setErr(e.message || 'Error llamando a /api/what-if');
+        }
       } finally {
         if (!ctrl.signal.aborted) setLoading(false);
       }
@@ -62,36 +59,6 @@ export default function Simulaciones() {
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [tutoria, sueno, finanzas, eff, grupo]);
 
-  // Función para ejecutar simulación bayesiana
-  const runBayesianSimulation = async () => {
-    setBayesianError('');
-    setBayesianLoading(true);
-    setBayesianResult(null);
-
-    try {
-      const interventions = {};
-      if (tutoria > 0) interventions.tutoria_academica = `${tutoria}%`;
-      if (sueno > 0) interventions.salud_mental = `${sueno}%`;
-      if (finanzas > 0) interventions.apoyo_financiero = `${finanzas}%`;
-
-      let result;
-      if (fullSimulation) {
-        result = await postWhatIfBayesianFull({ interventions });
-      } else {
-        result = await postWhatIfBayesian({ 
-          interventions, 
-          target: bayesianTarget, 
-          includeExplanation: true 
-        });
-      }
-      
-      setBayesianResult(result);
-    } catch (error) {
-      setBayesianError(error.message || 'Error en simulación bayesiana');
-    } finally {
-      setBayesianLoading(false);
-    }
-  };
 
   const baseVal = baseline?.index_pct_ge4 ?? null;
   const scenVal = scenario?.index_pct_ge4 ?? null;
@@ -124,7 +91,12 @@ export default function Simulaciones() {
 
       {/* Explicación Matemática Bayesiana */}
       <div className="mb-6">
-        <BayesianMathExplanation />
+        <BayesianMathExplanation 
+          baseline={baseline}
+          postIntervention={scenario}
+          target="wellbeing_index"
+          interventions={{ tutoria, sueno, finanzas }}
+        />
       </div>
 
       <ContextualHelp helpId="simulation-slider">
@@ -199,6 +171,7 @@ export default function Simulaciones() {
         delta={delta}
       />
 
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6">
         <label className="block font-medium text-slate-800 text-sm sm:text-base mb-3">
           Efectividad global del modelo
@@ -228,6 +201,11 @@ export default function Simulaciones() {
             <div className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold mt-2 text-slate-800">
               {baseVal != null ? `${baseVal.toFixed(3)}%` : '—'}
             </div>
+            {baseVal == null && !loading && (
+              <div className="text-xs text-orange-600 mt-1">
+                ⚠️ Sin datos disponibles
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
@@ -237,6 +215,11 @@ export default function Simulaciones() {
             <div className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold mt-2 text-slate-800">
               {scenVal != null ? `${scenVal.toFixed(3)}%` : '—'}
             </div>
+            {scenVal == null && !loading && (
+              <div className="text-xs text-orange-600 mt-1">
+                ⚠️ Sin datos disponibles
+              </div>
+            )}
             {delta != null && (
               <div className={`mt-2 text-sm font-medium ${delta <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 Δ {delta.toFixed(3)} pp
@@ -248,6 +231,22 @@ export default function Simulaciones() {
 
       
       
+      {/* Mensaje informativo cuando no hay datos */}
+      {baseVal == null && scenVal == null && !loading && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <span className="text-orange-600 mr-2">⚠️</span>
+            <div>
+              <h4 className="font-semibold text-orange-800">Sin datos disponibles</h4>
+              <p className="text-sm text-orange-700 mt-1">
+                No hay datos en la base de datos para realizar la simulación. 
+                Asegúrate de haber cargado datos CSV en la sección de Reportes.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="text-slate-500 text-xs sm:text-sm bg-slate-50 rounded-lg p-3">
         <strong>Fuente:</strong> <code className="bg-white px-2 py-1 rounded text-xs">/api/what-if</code>
       </div>

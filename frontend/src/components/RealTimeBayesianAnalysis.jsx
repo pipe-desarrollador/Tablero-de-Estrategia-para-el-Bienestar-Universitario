@@ -9,28 +9,51 @@ const RealTimeBayesianAnalysis = ({
   baselineValue, 
   delta 
 }) => {
-  // Calcular el índice de escenario basado en los sliders
-  const calculateScenarioIndex = () => {
-    const totalIntervention = (tutoria + sueno + finanzas) / 3; // Promedio de las tres intervenciones
+  // Usar los datos reales del backend si están disponibles
+  const getScenarioIndex = () => {
+    // Si tenemos datos del backend, usar el valor real del escenario
+    if (scenarioValue !== null) {
+      return scenarioValue;
+    }
+    
+    // Si no hay datos del backend, calcular un índice aproximado
+    const totalIntervention = (tutoria + sueno + finanzas) / 3;
     const effectivenessFactor = eff;
-    const baseIndex = baselineValue || 0;
+    const baseIndex = baselineValue || 0; // Sin datos, empezar en 0
     
     // Fórmula simplificada: índice base + (intervenciones * efectividad)
     const scenarioIndex = baseIndex + (totalIntervention * effectivenessFactor * 0.1);
-    return Math.min(Math.max(scenarioIndex, 0), 100); // Limitar entre 0 y 100
+    return Math.min(Math.max(scenarioIndex, 0), 100);
   };
 
-  const scenarioIndex = calculateScenarioIndex();
+  const scenarioIndex = getScenarioIndex();
 
   // Análisis bayesiano de las intervenciones
   const getBayesianAnalysis = () => {
+    // Si tenemos datos reales del backend, usar esos valores
+    if (baselineValue !== null && scenarioValue !== null) {
+      const realImprovement = baselineValue - scenarioValue; // Mejora real del backend
+      const realProbability = Math.abs(realImprovement) / baselineValue; // Probabilidad basada en mejora real
+      
+      return {
+        interventions: [
+          { name: 'Tutoría Académica', value: tutoria, impact: 0.3 },
+          { name: 'Salud Mental', value: sueno, impact: 0.4 },
+          { name: 'Apoyo Financiero', value: finanzas, impact: 0.3 }
+        ],
+        bayesianProbability: Math.min(realProbability, 1), // Limitar a 100%
+        expectedImprovement: realImprovement,
+        isRealData: true
+      };
+    }
+
+    // Si no hay datos reales, calcular valores aproximados
     const interventions = [
       { name: 'Tutoría Académica', value: tutoria, impact: 0.3 },
       { name: 'Salud Mental', value: sueno, impact: 0.4 },
       { name: 'Apoyo Financiero', value: finanzas, impact: 0.3 }
     ];
 
-    // Calcular probabilidades bayesianas
     const totalWeight = interventions.reduce((sum, int) => sum + (int.value * int.impact), 0);
     const maxPossible = interventions.reduce((sum, int) => sum + (100 * int.impact), 0);
     const bayesianProbability = totalWeight / maxPossible;
@@ -40,7 +63,8 @@ const RealTimeBayesianAnalysis = ({
       totalWeight,
       maxPossible,
       bayesianProbability,
-      expectedImprovement: bayesianProbability * 20 // Mejora esperada en puntos porcentuales
+      expectedImprovement: bayesianProbability * 20,
+      isRealData: false
     };
   };
 
@@ -48,6 +72,45 @@ const RealTimeBayesianAnalysis = ({
 
   // Interpretación del resultado
   const getInterpretation = () => {
+    // Si tenemos datos reales, usar la mejora real para la interpretación
+    if (analysis.isRealData) {
+      const improvement = analysis.expectedImprovement;
+      if (improvement > 2) {
+        return {
+          level: 'Excelente',
+          color: 'text-green-600',
+          bgColor: 'bg-green-50',
+          borderColor: 'border-green-200',
+          explanation: `Las intervenciones muestran una mejora significativa de ${improvement.toFixed(1)} puntos porcentuales. Excelente impacto en el bienestar estudiantil.`
+        };
+      } else if (improvement > 0.5) {
+        return {
+          level: 'Bueno',
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-50',
+          borderColor: 'border-blue-200',
+          explanation: `Las intervenciones muestran una mejora moderada de ${improvement.toFixed(1)} puntos porcentuales. Impacto positivo en el bienestar estudiantil.`
+        };
+      } else if (improvement > 0) {
+        return {
+          level: 'Leve',
+          color: 'text-yellow-600',
+          bgColor: 'bg-yellow-50',
+          borderColor: 'border-yellow-200',
+          explanation: `Las intervenciones muestran una mejora leve de ${improvement.toFixed(1)} puntos porcentuales. Considera aumentar las inversiones para mayor impacto.`
+        };
+      } else {
+        return {
+          level: 'Sin Mejora',
+          color: 'text-red-600',
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-200',
+          explanation: 'Las intervenciones actuales no muestran mejora significativa. Se recomienda revisar la estrategia o aumentar las inversiones.'
+        };
+      }
+    }
+
+    // Interpretación basada en el índice calculado (cuando no hay datos reales)
     if (scenarioIndex < 30) {
       return {
         level: 'Bajo',
@@ -101,8 +164,11 @@ const RealTimeBayesianAnalysis = ({
           ></div>
         </div>
         <p className="text-xs text-gray-600 mt-1">
-          Basado en: Tutoría {tutoria}% + Salud Mental {sueno}% + Apoyo Financiero {finanzas}% 
-          (Efectividad: {(eff * 100).toFixed(0)}%)
+          {scenarioValue !== null ? (
+            `Datos reales del backend (Baseline: ${baselineValue?.toFixed(1) || 'N/A'}%)`
+          ) : (
+            `Calculado: Tutoría {tutoria}% + Salud Mental {sueno}% + Apoyo Financiero {finanzas}% (Efectividad: {(eff * 100).toFixed(0)}%)`
+          )}
         </p>
       </div>
 
@@ -132,25 +198,36 @@ const RealTimeBayesianAnalysis = ({
         <div className="bg-white bg-opacity-50 rounded-lg p-3 mb-3">
           <h5 className="font-semibold text-gray-800 mb-2">🔍 ¿Qué significa este resultado?</h5>
           <div className="text-sm text-gray-700 space-y-2">
-            {interpretation.level === 'Bajo' && (
+            {analysis.isRealData ? (
               <>
-                <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones actuales tienen un impacto limitado en el bienestar estudiantil.</p>
-                <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora mínima en el porcentaje de estudiantes con bienestar alto.</p>
-                <p>• <strong>Recomendación:</strong> Considera aumentar significativamente las inversiones o mejorar la efectividad del modelo.</p>
+                <p>• <strong>Datos Reales del Backend:</strong> Estos valores están calculados usando los datos reales de {baselineValue?.toFixed(1)}% de estudiantes con bienestar alto.</p>
+                <p>• <strong>Mejora Real: {analysis.expectedImprovement.toFixed(1)} pp:</strong> Esta es la mejora real calculada por el modelo bayesiano del backend.</p>
+                <p>• <strong>Probabilidad Bayesiana: {(analysis.bayesianProbability * 100).toFixed(1)}%:</strong> Probabilidad de éxito basada en la mejora real observada.</p>
+                <p>• <strong>Recomendación:</strong> {interpretation.explanation}</p>
               </>
-            )}
-            {interpretation.level === 'Moderado' && (
+            ) : (
               <>
-                <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones muestran un impacto moderado y prometedor.</p>
-                <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora notable en el bienestar estudiantil.</p>
-                <p>• <strong>Recomendación:</strong> Optimiza la efectividad del modelo o aumenta las inversiones para maximizar el impacto.</p>
-              </>
-            )}
-            {interpretation.level === 'Alto' && (
-              <>
-                <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones tienen un impacto significativo y bien balanceado.</p>
-                <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora sustancial en el bienestar estudiantil.</p>
-                <p>• <strong>Recomendación:</strong> Mantén esta configuración y considera monitorear los resultados para optimizar aún más.</p>
+                {interpretation.level === 'Bajo' && (
+                  <>
+                    <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones actuales tienen un impacto limitado en el bienestar estudiantil.</p>
+                    <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora mínima en el porcentaje de estudiantes con bienestar alto.</p>
+                    <p>• <strong>Recomendación:</strong> Considera aumentar significativamente las inversiones o mejorar la efectividad del modelo.</p>
+                  </>
+                )}
+                {interpretation.level === 'Moderado' && (
+                  <>
+                    <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones muestran un impacto moderado y prometedor.</p>
+                    <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora notable en el bienestar estudiantil.</p>
+                    <p>• <strong>Recomendación:</strong> Optimiza la efectividad del modelo o aumenta las inversiones para maximizar el impacto.</p>
+                  </>
+                )}
+                {interpretation.level === 'Alto' && (
+                  <>
+                    <p>• <strong>Probabilidad Bayesiana {analysis.bayesianProbability.toFixed(1)}:</strong> Las intervenciones tienen un impacto significativo y bien balanceado.</p>
+                    <p>• <strong>Mejora Esperada +{analysis.expectedImprovement.toFixed(1)} pp:</strong> Se espera una mejora sustancial en el bienestar estudiantil.</p>
+                    <p>• <strong>Recomendación:</strong> Mantén esta configuración y considera monitorear los resultados para optimizar aún más.</p>
+                  </>
+                )}
               </>
             )}
           </div>

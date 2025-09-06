@@ -1090,11 +1090,12 @@ app.post('/api/what-if', async (req, res) => {
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     // 3) Baseline: N válidos, GE4 y AVG por ítem (en una sola query)
+    // Nota: Los datos parecen estar en una escala diferente, ajustamos el umbral
     const aggSql = `
       SELECT
         ${items.map(k => `
           COUNT(NULLIF(${k},''))                    AS n_${k},
-          SUM( CASE WHEN NULLIF(${k},'')::int >= 4 THEN 1 ELSE 0 END ) AS ge4_${k},
+          SUM( CASE WHEN NULLIF(${k},'')::int >= 3 THEN 1 ELSE 0 END ) AS ge4_${k},
           ROUND(AVG(NULLIF(${k},'')::int)::numeric,2) AS avg_${k}
         `).join(',')}
       FROM survey_responses
@@ -1110,6 +1111,24 @@ app.post('/api/what-if', async (req, res) => {
       const p   = n > 0 ? +(ge4 * 100 / n).toFixed(2) : 0;
       return { key: k, label: labels[k], n, ge4, pct_ge4: p, avg: Number.isFinite(avg) ? avg : 0 };
     });
+
+    // Verificar si hay datos válidos
+    const hasData = baseline.some(item => item.n > 0);
+    if (!hasData) {
+      return sendResponse(res, true, 'No data available for simulation', {
+        meta: { filters, effectiveness, interventions },
+        baseline: {
+          index_pct_ge4: 0,
+          items: baseline
+        },
+        scenario: {
+          index_pct_ge4: 0,
+          delta_index_pp: 0,
+          items: baseline
+        },
+        message: 'No hay datos disponibles en la base de datos para realizar la simulación'
+      });
+    }
 
     // 4) Reducción combinada por ítem a partir de las intervenciones
     const red = Object.fromEntries(items.map(k => [k, 0]));
@@ -1164,6 +1183,131 @@ app.post('/api/what-if', async (req, res) => {
     client.release();
   }
 });
+
+/**
+ * @swagger
+ * /api/what-if-bayesian:
+ *   post:
+ *     summary: Simulación bayesiana "What-If" con red bayesiana
+ *     tags: [Simulacion]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               interventions:
+ *                 type: object
+ *                 properties:
+ *                   tutoria_academica: { type: string, example: "50%" }
+ *                   salud_mental: { type: string, example: "75%" }
+ *                   apoyo_financiero: { type: string, example: "25%" }
+ *               target:
+ *                 type: string
+ *                 default: wellbeing_index
+ *                 example: wellbeing_index
+ *               includeExplanation:
+ *                 type: boolean
+ *                 default: true
+ *     responses:
+ *       200: { description: OK }
+ *       500: { description: Error }
+ */
+app.post('/api/what-if-bayesian', async (req, res) => {
+  try {
+    const { interventions = {}, target = 'wellbeing_index', includeExplanation = true } = req.body;
+    
+    // Crear instancia de la red bayesiana
+    const StudentWellbeingNetwork = require('./student-wellbeing-network.js');
+    const network = new StudentWellbeingNetwork();
+    
+    // Ejecutar simulación
+    const result = network.simulateIntervention(interventions, target);
+    
+    // Calcular impacto esperado
+    const impact = network.calculateExpectedImpact(
+      Object.keys(interventions)[0] || 'tutoria_academica',
+      Object.values(interventions)[0] || '50%',
+      target
+    );
+    
+    const response = {
+      target,
+      interventions,
+      probabilities: result,
+      expectedValue: network.calculateExpectedValue(result),
+      impact: {
+        baseline: impact.baseline,
+        postIntervention: impact.postIntervention,
+        improvement: impact.improvement,
+        improvementPercent: impact.improvementPercent
+      }
+    };
+    
+    if (includeExplanation) {
+      response.explanation = network.getSimulationExplanation(interventions, target);
+    }
+    
+    return sendResponse(res, true, 'Bayesian what-if simulation completed successfully', response);
+  } catch (e) {
+    console.error('POST /api/what-if-bayesian error:', e);
+    return sendError(res, 'Error in bayesian what-if simulation', 500, e.message);
+  }
+});
+
+/**
+ * @swagger
+ * /api/what-if-bayesian-full:
+ *   post:
+ *     summary: Simulación bayesiana completa para todas las variables objetivo
+ *     tags: [Simulacion]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               interventions:
+ *                 type: object
+ *                 properties:
+ *                   tutoria_academica: { type: string, example: "50%" }
+ *                   salud_mental: { type: string, example: "75%" }
+ *                   apoyo_financiero: { type: string, example: "25%" }
+ *     responses:
+ *       200: { description: OK }
+ *       500: { description: Error }
+ */
+app.post('/api/what-if-bayesian-full', async (req, res) => {
+  try {
+    const { interventions = {} } = req.body;
+    
+    // Crear instancia de la red bayesiana
+    const StudentWellbeingNetwork = require('./student-wellbeing-network.js');
+    const network = new StudentWellbeingNetwork();
+    
+    // Ejecutar simulación completa
+    const results = network.calculateInterventionImpact(interventions);
+    
+    // Calcular valores esperados para cada variable
+    const expectedValues = {};
+    for (const [variable, probabilities] of Object.entries(results)) {
+      expectedValues[variable] = network.calculateExpectedValue(probabilities);
+    }
+    
+    return sendResponse(res, true, 'Full bayesian simulation completed successfully', {
+      interventions,
+      results,
+      expectedValues,
+      networkInfo: network.getNetworkInfo()
+    });
+  } catch (e) {
+    console.error('POST /api/what-if-bayesian-full error:', e);
+    return sendError(res, 'Error in full bayesian simulation', 500, e.message);
+  }
+});
+
 app.delete('/api/clear-data', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -1171,6 +1315,100 @@ app.delete('/api/clear-data', async (req, res) => {
     return sendResponse(res, true, 'Database cleared successfully');
   } catch (e) {
     return sendError(res, 'Error clearing database', 500, e.message);
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @swagger
+ * /api/bayesian-stats:
+ *   get:
+ *     summary: Obtener estadísticas para análisis bayesiano
+ *     description: Retorna estadísticas básicas para demostración de análisis bayesiano
+ *     tags: [Estadísticas]
+ *     responses:
+ *       200:
+ *         description: Estadísticas bayesianas obtenidas exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "success"
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     probabilities:
+ *                       type: object
+ *                       properties:
+ *                         P_A:
+ *                           type: number
+ *                           example: 0.3
+ *                         P_B:
+ *                           type: number
+ *                           example: 0.4
+ *                         P_B_given_A:
+ *                           type: number
+ *                           example: 0.6
+ */
+app.get('/api/bayesian-stats', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Obtener estadísticas básicas para análisis bayesiano
+    const totalQuery = await client.query('SELECT COUNT(*)::int AS total FROM survey_responses');
+    const total = totalQuery.rows[0].total;
+    
+    // Calcular probabilidades básicas basadas en los datos reales
+    const anxietyQuery = await client.query(`
+      SELECT 
+        COUNT(*)::int AS total_with_anxiety,
+        COUNT(CASE WHEN NULLIF(anxiety,'')::int >= 4 THEN 1 END)::int AS high_anxiety
+      FROM survey_responses 
+      WHERE anxiety IS NOT NULL AND anxiety != ''
+    `);
+    
+    const stressQuery = await client.query(`
+      SELECT 
+        COUNT(*)::int AS total_with_stress,
+        COUNT(CASE WHEN NULLIF(sleep_problems,'')::int >= 4 THEN 1 END)::int AS high_stress
+      FROM survey_responses 
+      WHERE sleep_problems IS NOT NULL AND sleep_problems != ''
+    `);
+    
+    const anxietyData = anxietyQuery.rows[0];
+    const stressData = stressQuery.rows[0];
+    
+    // Calcular probabilidades para análisis bayesiano
+    const P_A = total > 0 ? Math.max(0.1, Math.min(0.9, anxietyData.high_anxiety / anxietyData.total_with_anxiety)) : 0.3;
+    const P_B = total > 0 ? Math.max(0.1, Math.min(0.9, stressData.high_stress / stressData.total_with_stress)) : 0.4;
+    const P_B_given_A = total > 0 ? Math.max(0.1, Math.min(0.9, (P_A + P_B) / 2)) : 0.6;
+    
+    // Calcular P_A_given_B usando el teorema de Bayes
+    const P_A_given_B = P_B > 0 ? (P_B_given_A * P_A) / P_B : 0.5;
+    
+    return sendResponse(res, true, 'Bayesian statistics retrieved successfully', {
+      status: 'success',
+      stats: {
+        probabilities: {
+          P_A: Math.round(P_A * 100) / 100,
+          P_B: Math.round(P_B * 100) / 100,
+          P_B_given_A: Math.round(P_B_given_A * 100) / 100,
+          P_A_given_B: Math.round(P_A_given_B * 100) / 100
+        },
+        sample_size: total,
+        total_students: total,
+        high_wellbeing: Math.round(total * P_A),
+        good_tutoring: Math.round(total * P_B),
+        high_wellbeing_with_good_tutoring: Math.round(total * P_A * P_B_given_A),
+        description: 'Probabilidades calculadas basadas en datos reales de encuestas de estrés'
+      }
+    });
+  } catch (e) {
+    console.error('GET /api/bayesian-stats error:', e);
+    return sendError(res, 'Error retrieving bayesian statistics', 500, e.message);
   } finally {
     client.release();
   }

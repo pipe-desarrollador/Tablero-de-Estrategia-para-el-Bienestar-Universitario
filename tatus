@@ -1,0 +1,10 @@
+warning: in the working copy of 'frontend/src/components/BayesianMathExplanation.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/RealTimeBayesianAnalysis.jsx', CRLF will be replaced by LF the next time Git touches it
+backend/kpi-checker.js
+backend/src/app.js
+backend/test-bayesian-network.js
+frontend/src/components/BayesianMathExplanation.jsx
+frontend/src/components/RealTimeBayesianAnalysis.jsx
+frontend/src/lib/api.js
+frontend/src/pages/Reportes.jsx
+frontend/src/pages/Simulaciones.jsx
