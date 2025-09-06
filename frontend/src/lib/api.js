@@ -16,8 +16,8 @@ export async function getSerie(params = {}) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${API_URL}/api/compare/likert-ge4${qs ? `?${qs}` : ''}`);
   const json = await okJSON(res);
-  // El backend responde { series: [...] }
-  return Array.isArray(json?.series) ? json.series : [];
+  // El backend responde { data: { series: [...] } }
+  return Array.isArray(json?.data?.series) ? json.data.series : [];
 }
 
 // === Comparativos (línea) ===
@@ -30,8 +30,8 @@ export async function getFactoresComparativo() {
 export async function getFactoresClave() {
   const res = await fetch(`${API_URL}/api/factores-clave`);
   const json = await okJSON(res);
-  // Espera: { resultados: [ { universidad, factores: [{factor,promedio,porcentaje_ge4}...] }, ... ] }
-  const rows = Array.isArray(json?.resultados) ? json.resultados : [];
+  // Espera: { data: { resultados: [ { universidad, factores: [{factor,promedio,porcentaje_ge4}...] }, ... ] } }
+  const rows = Array.isArray(json?.data?.resultados) ? json.data.resultados : [];
 
   // Normaliza a estructura para 2 gráficas de barras: “Promedios” y “%≥4”
   // categories en el mismo orden para ambas
@@ -98,6 +98,43 @@ export async function postWhatIf(
   return okJSON(res);
 }
 
+// === Simulaciones Bayesianas ===
+export async function postWhatIfBayesian(
+  { interventions = {}, target = 'wellbeing_index', includeExplanation = true } = {},
+  { signal } = {}
+) {
+  const res = await fetch(`${API_URL}/api/what-if-bayesian`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interventions, target, includeExplanation }),
+    signal,
+  });
+  return okJSON(res);
+}
+
+export async function postWhatIfBayesianFull(
+  { interventions = {} } = {},
+  { signal } = {}
+) {
+  const res = await fetch(`${API_URL}/api/what-if-bayesian-full`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interventions }),
+    signal,
+  });
+  return okJSON(res);
+}
+
+export async function getBayesianStats({ signal } = {}) {
+  const res = await fetch(`${API_URL}/api/bayesian-stats`, {
+    method: 'GET',
+    signal,
+  });
+  const json = await okJSON(res);
+  // El backend responde { data: { status: 'success', stats: {...} } }
+  return json.data;
+}
+
 
 
 // Mapeo de claves Likert -> etiquetas
@@ -117,9 +154,9 @@ export async function getResumen(params = {}) {
     Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ''))
   ).toString();
 
-  const data = await getJSON(`/api/stats${qs ? `?${qs}` : ''}`);
+  const response = await getJSON(`/api/stats${qs ? `?${qs}` : ''}`);
 
-  const avgs = data?.likert_avgs || {};
+  const avgs = response?.data?.likert_avgs || {};
   const items = Object.entries(LIKERT_LABELS).map(([key, label]) => ({
     key,
     label,
@@ -136,7 +173,7 @@ export async function getResumen(params = {}) {
   return {
     promedio: stressMean,
     top: top3.map(i => `${i.label} (${i.value.toFixed(2)})`),
-    raw: data,
+    raw: response,
   };
 }
 

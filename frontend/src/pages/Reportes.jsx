@@ -33,7 +33,8 @@ export default function Reportes() {
     setLoading(true);
     try {
       const r = await getTableStructure();
-      setStruct(r?.survey_responses || []);
+      console.log('Table structure response:', r); // Debug log
+      setStruct(r?.data?.survey_responses || []);
     } catch (e) {
       setErr(e.message || 'No se pudo obtener estructura');
     } finally {
