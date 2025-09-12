@@ -213,7 +213,7 @@ class BayesianNetwork {
     return {
       baseline: baselineValue,
       postIntervention: postValue,
-      improvement: baselineValue - posnpmtValue,
+      improvement: baselineValue - postValue,
       improvementPercent: baselineValue > 0 ? ((baselineValue - postValue) / baselineValue) * 100 : 0,
       probabilities: {
         baseline,

@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
 // ---- utilidades ----
-const { norm, detectSeparator, normalizeLikertData } = require('../utils');
+const { norm, detectSeparator, normalizeLikertData, checkDuplicateRecord, checkExactDuplicate } = require('../utils');
 const { config } = require('../config');
 
 // ---- Helper para respuestas JSON estandarizadas ----
@@ -82,41 +82,136 @@ const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'API de Dataset de Estrés Estudiantil',
+      title: 'API de Tablero de Estrategia para el Bienestar Universitario',
       version: '1.0.0',
-      description: 'API para cargar y gestionar datasets de estrés estudiantil en PostgreSQL',
-      contact: { name: 'Soporte Técnico', email: 'soporte@ejemplo.com' }
+      description: 'API para cargar, gestionar y analizar datasets de estrés estudiantil universitario. Incluye funcionalidades de análisis bayesiano, simulaciones what-if y generación de reportes para la toma de decisiones estratégicas en bienestar estudiantil.',
+      contact: { 
+        name: 'Equipo de Desarrollo', 
+        email: 'desarrollo@universidad.edu.co',
+        url: 'https://github.com/universidad/tablero-bienestar'
+      },
+      license: {
+        name: 'MIT',
+        url: 'https://opensource.org/licenses/MIT'
+      }
     },
-    servers: [{ url: 'http://localhost:3000', description: 'Servidor de desarrollo' }],
+    servers: [
+      { 
+        url: 'http://localhost:3000', 
+        description: 'Servidor de desarrollo local' 
+      },
+      { 
+        url: 'https://api-bienestar.universidad.edu.co', 
+        description: 'Servidor de producción' 
+      }
+    ],
     components: {
       schemas: {
-        UploadResponse: {
+        RespuestaCarga: {
           type: 'object',
           properties: {
+            success: { 
+              type: 'boolean', 
+              description: 'Indica si la operación fue exitosa' 
+            },
+            message: { 
+              type: 'string', 
+              description: 'Mensaje descriptivo del resultado' 
+            },
+            data: {
+              type: 'object',
+              properties: {
+                fileType: { 
+                  type: 'string', 
+                  description: 'Tipo de archivo procesado' 
+                },
+                recordsProcessed: { 
+                  type: 'integer', 
+                  description: 'Número de registros procesados' 
+                },
+                normalization: {
+                  type: 'object',
+                  description: 'Información sobre normalización aplicada',
+                  properties: {
+                    applied: { type: 'boolean' },
+                    totalNormalized: { type: 'integer' },
+                    normalizedColumns: { 
+                      type: 'array', 
+                      items: { type: 'string' } 
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        Error: { 
+          type: 'object', 
+          properties: { 
+            success: { type: 'boolean', example: false },
+            error: { type: 'string', description: 'Mensaje de error' },
+            details: { type: 'string', description: 'Detalles adicionales del error' }
+          } 
+        },
+        RespuestaEstadisticas: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
             message: { type: 'string' },
-            fileType: { type: 'string' },
-            recordsProcessed: { type: 'integer' }
+            data: {
+              type: 'object',
+              properties: {
+                surveyResponses: { 
+                  type: 'integer', 
+                  description: 'Número total de respuestas de encuestas' 
+                },
+                totalRecords: { 
+                  type: 'integer', 
+                  description: 'Total de registros en la base de datos' 
+                },
+                datasets: {
+                  type: 'array',
+                  description: 'Lista de datasets disponibles',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      source: { type: 'string' },
+                      count: { type: 'integer' }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
-        Error: { type: 'object', properties: { error: { type: 'string' } } },
-        StatsResponse: {
+        RespuestaEstructuraTabla: {
           type: 'object',
           properties: {
-            surveyResponses: { type: 'integer' },
-            message: { type: 'string' }
-          }
-        },
-        TableStructureResponse: {
-          type: 'object',
-          properties: {
-            survey_responses: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  column_name: { type: 'string' },
-                  data_type: { type: 'string' },
-                  is_nullable: { type: 'string' }
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            data: {
+              type: 'object',
+              properties: {
+                survey_responses: {
+                  type: 'array',
+                  description: 'Estructura de la tabla survey_responses',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      column_name: { 
+                        type: 'string', 
+                        description: 'Nombre de la columna' 
+                      },
+                      data_type: { 
+                        type: 'string', 
+                        description: 'Tipo de dato' 
+                      },
+                      is_nullable: { 
+                        type: 'string', 
+                        description: 'Permite valores nulos (YES/NO)' 
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -144,9 +239,39 @@ const LIKERT_COLS = [
   'weight_change','stress_type'
 ];
 
-// ¿Debo escalar? (solo datasets en inglés)
-const shouldScaleTo1to5 = (src) =>
-  src === 'Stress_Dataset' || src === 'StressLevelDataset';
+// Nota: La lógica de escalado condicional ahora está integrada en normalizeLikertData()
+
+// Función helper para insertar registros con verificación de duplicados
+async function insertRecordWithDuplicateCheck(client, cols, vals, src) {
+  // Crear objeto de registro para verificación de duplicados
+  const recordData = {};
+  cols.forEach((col, index) => {
+    recordData[col] = vals[index];
+  });
+
+  // Verificar duplicados antes de insertar
+  const isDuplicate = await checkDuplicateRecord(client, recordData, src);
+  const isExactDuplicate = await checkExactDuplicate(client, recordData, src);
+
+  if (isDuplicate || isExactDuplicate) {
+    console.log('Registro duplicado detectado y omitido:', {
+      gender: recordData.gender,
+      age: recordData.age,
+      stress_type: recordData.stress_type,
+      source: src,
+      duplicateType: isExactDuplicate ? 'exact' : 'similar'
+    });
+    return { inserted: false, reason: 'duplicate' };
+  }
+
+  // Insertar solo si no es duplicado
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+  await client.query(
+    `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
+    vals
+  );
+  return { inserted: true, reason: 'success' };
+}
 
 // Reescala numéricos a 1..5 (redondeando) cuando vienen 0..10 o 0..100
 function scaleLikertTo1to5(raw) {
@@ -185,42 +310,73 @@ function scaleLikertTo1to5(raw) {
  *   post:
  *     summary: Cargar y procesar archivo CSV de estrés estudiantil
  *     description: |
- *       Soporta tres formatos:
- *       - **Stress_Dataset.csv** (en inglés)
- *       - **StressLevelDataset.csv** (en inglés)
- *       - **Encuestas_UCaldas.csv** (en español)
- *       Los datos se insertan en la tabla `survey_responses`.
- *     tags: [Dataset]
+ *       Endpoint para cargar datasets de estrés estudiantil universitario. 
+ *       Soporta múltiples formatos de archivos CSV:
+ *       
+ *       **Formatos soportados:**
+ *       - **Stress_Dataset.csv** (en inglés) - Requiere normalización a escala 1-5
+ *       - **StressLevelDataset.csv** (en inglés) - Requiere normalización a escala 1-5  
+ *       - **Encuestas_UCaldas.csv** (en español) - Mantiene escala original
+ *       
+ *       **Funcionalidades:**
+ *       - Detección automática del tipo de dataset
+ *       - Normalización inteligente de escalas Likert
+ *       - Validación de datos y estructura
+ *       - Inserción masiva en base de datos PostgreSQL
+ *       
+ *       Los datos se almacenan en la tabla `survey_responses` con metadatos de origen.
+ *     tags: [Gestión de Datos]
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required:
+ *               - file
  *             properties:
  *               file:
  *                 type: string
  *                 format: binary
- *                 description: Archivo CSV a procesar
+ *                 description: Archivo CSV con datos de estrés estudiantil
+ *                 example: "dataset_estres_2024.csv"
  *     responses:
  *       200:
  *         description: Dataset cargado y procesado exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/UploadResponse'
+ *               $ref: '#/components/schemas/RespuestaCarga'
+ *             example:
+ *               success: true
+ *               message: "Dataset cargado y procesado exitosamente"
+ *               data:
+ *                 fileType: "Stress_Dataset.csv"
+ *                 recordsProcessed: 150
+ *                 normalization:
+ *                   applied: true
+ *                   totalNormalized: 450
+ *                   normalizedColumns: ["anxiety", "stress_level", "sleep_problems"]
  *       400:
- *         description: Error en la solicitud (archivo no proporcionado o formato desconocido)
+ *         description: Error en la solicitud (archivo no proporcionado, formato inválido o CSV vacío)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               error: "No se proporcionó archivo en la solicitud"
+ *               details: "El campo 'file' es requerido"
  *       500:
- *         description: Error interno del servidor
+ *         description: Error interno del servidor durante el procesamiento
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               error: "Error procesando archivo"
+ *               details: "Error de conexión a la base de datos"
  */
 
 app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
@@ -293,7 +449,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
             'weight_change', 'stress_type'
           ];
 
-          const normalizationResult = normalizeLikertData(records, likertColumns);
+          const normalizationResult = normalizeLikertData(records, likertColumns, src);
           if (normalizationResult.applied) {
             console.log('Normalización aplicada:', {
               totalRecords: normalizationResult.totalRecords,
@@ -305,6 +461,7 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           }
 
           let inserted = 0;
+          let duplicatesSkipped = 0;
 
           for (const row of records) {
             if (isStressDataset) {
@@ -356,12 +513,12 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
               vals.push(src);
 
               if (cols.length) {
-                const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-                await client.query(
-                  `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
-                  vals
-                );
-                inserted++;
+                const result = await insertRecordWithDuplicateCheck(client, cols, vals, src);
+                if (result.inserted) {
+                  inserted++;
+                } else if (result.reason === 'duplicate') {
+                  duplicatesSkipped++;
+                }
               }
 
             } else if (isStressLevelDataset) {
@@ -404,12 +561,12 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
               vals.push(src);
 
               if (cols.length) {
-                const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-                await client.query(
-                  `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
-                  vals
-                );
-                inserted++;
+                const result = await insertRecordWithDuplicateCheck(client, cols, vals, src);
+                if (result.inserted) {
+                  inserted++;
+                } else if (result.reason === 'duplicate') {
+                  duplicatesSkipped++;
+                }
               }
 
             } else {
@@ -445,12 +602,12 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
               vals.push(src);
 
               if (cols.length) {
-                const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-                await client.query(
-                  `INSERT INTO survey_responses (${cols.join(',')}) VALUES (${placeholders})`,
-                  vals
-                );
-                inserted++;
+                const result = await insertRecordWithDuplicateCheck(client, cols, vals, src);
+                if (result.inserted) {
+                  inserted++;
+                } else if (result.reason === 'duplicate') {
+                  duplicatesSkipped++;
+                }
               }
             }
           }
@@ -459,6 +616,8 @@ app.post('/api/upload-dataset', upload.single('file'), async (req, res) => {
           return sendResponse(res, true, 'Dataset uploaded and processed successfully', {
             fileType: `${src}.csv`,
             recordsProcessed: inserted,
+            duplicatesSkipped,
+            totalRecords: records.length,
             normalization: normalizationResult.applied ? {
               applied: true,
               totalNormalized: normalizationResult.totalNormalized,
@@ -722,28 +881,86 @@ app.get('/api/data', async (req, res) => {
  * @swagger
  * /api/stats:
  *   get:
- *     summary: Estadísticas del dataset (filtros opcionales)
- *     tags: [Estadísticas]
+ *     summary: Obtener estadísticas detalladas del dataset
+ *     description: |
+ *       Endpoint para obtener estadísticas completas del dataset de estrés estudiantil.
+ *       Permite filtrar los datos por diferentes criterios demográficos y académicos.
+ *       
+ *       **Estadísticas incluidas:**
+ *       - Totales generales y por filtros aplicados
+ *       - Distribución por edad, género y tipo de estrés
+ *       - Promedios de escalas Likert (ansiedad, estrés, sueño, etc.)
+ *       - Cobertura de datos por fuente
+ *       - Análisis de completitud de respuestas
+ *     tags: [Análisis y Estadísticas]
  *     parameters:
  *       - in: query
  *         name: gender
- *         schema: { type: string }
+ *         schema: 
+ *           type: string
+ *           enum: [F, M, Femenino, Masculino, Female, Male]
+ *         description: Filtrar por género
  *         example: F
  *       - in: query
  *         name: stress_type
- *         schema: { type: string }
- *         example: Académico
+ *         schema: 
+ *           type: string
+ *           enum: ["Academic", "Social", "Financial", "Health", "Académico", "Social", "Financiero", "Salud"]
+ *         description: Filtrar por tipo de estrés
+ *         example: "Académico"
  *       - in: query
  *         name: age_min
- *         schema: { type: integer }
+ *         schema: 
+ *           type: integer
+ *           minimum: 16
+ *           maximum: 65
+ *         description: Edad mínima para filtrar
  *         example: 18
  *       - in: query
  *         name: age_max
- *         schema: { type: integer }
+ *         schema: 
+ *           type: integer
+ *           minimum: 16
+ *           maximum: 65
+ *         description: Edad máxima para filtrar
  *         example: 25
  *     responses:
- *       200: { description: OK }
- *       500: { description: Error }
+ *       200:
+ *         description: Estadísticas obtenidas exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RespuestaEstadisticas'
+ *             example:
+ *               success: true
+ *               message: "Estadísticas obtenidas exitosamente"
+ *               data:
+ *                 filters:
+ *                   gender: "F"
+ *                   stress_type: "Académico"
+ *                   age_min: 18
+ *                   age_max: 25
+ *                 totals:
+ *                   total: 1250
+ *                 age:
+ *                   min: 18
+ *                   max: 25
+ *                   avg: 21.5
+ *                 by_gender:
+ *                   - gender: "F"
+ *                     count: 750
+ *                   - gender: "M"
+ *                     count: 500
+ *                 likert_avgs:
+ *                   anxiety: 3.2
+ *                   stress_level: 3.8
+ *                   sleep_problems: 2.9
+ *       500:
+ *         description: Error interno del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.get('/api/stats', async (req, res) => {
   const client = await pool.connect();
@@ -893,7 +1110,7 @@ app.get('/api/compare/likert-ge4', async (req, res) => {
     FROM survey_responses
   )
   SELECT * FROM base;
-`
+`;
     const base = await client.query(baseSql);
 
     // 2) Agregar por grupo: total filas y conteo de >=4 por ítem
@@ -948,12 +1165,12 @@ app.get('/api/factores-clave', async (req, res) => {
     const groups = [
       { key: 'Universidad de Caldas',
         cond:
-          "(lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
-          "OR lower(source) LIKE '%caldas%')" },
+          '(lower(trim(source)) IN (\'encuestas_ucaldas\',\'ucaldas\',\'udec\',\'universidad de caldas\') ' +
+          'OR lower(source) LIKE \'%caldas%\')' },
       { key: 'Otras universidades',
         cond:
-          "NOT (lower(trim(source)) IN ('encuestas_ucaldas','ucaldas','udec','universidad de caldas') " +
-          "OR lower(source) LIKE '%caldas%')" }
+          'NOT (lower(trim(source)) IN (\'encuestas_ucaldas\',\'ucaldas\',\'udec\',\'universidad de caldas\') ' +
+          'OR lower(source) LIKE \'%caldas%\')' }
     ];
     const resultados = [];
     for (const group of groups) {
@@ -991,8 +1208,22 @@ app.get('/api/factores-clave', async (req, res) => {
  * @swagger
  * /api/what-if:
  *   post:
- *     summary: Simulación "What-If" sobre factores de estrés (Likert)
- *     tags: [Simulacion]
+ *     summary: Simulación "What-If" para análisis de impacto de intervenciones
+ *     description: |
+ *       Endpoint para realizar simulaciones de escenarios "¿Qué pasaría si?" 
+ *       aplicando diferentes intervenciones sobre factores de estrés estudiantil.
+ *       
+ *       **Funcionalidades:**
+ *       - Análisis de línea base vs escenario con intervenciones
+ *       - Cálculo de impacto en índices de bienestar
+ *       - Filtrado por criterios demográficos y grupos universitarios
+ *       - Múltiples tipos de intervenciones simultáneas
+ *       - Medición de efectividad personalizable
+ *       
+ *       **Tipos de intervenciones disponibles:**
+ *       - Tutoría académica, Salud mental, Actividad física
+ *       - Gestión de tiempo, Apoyo económico, Ambiente de residencia
+ *     tags: [Simulaciones y Análisis Predictivo]
  *     requestBody:
  *       required: true
  *       content:
@@ -1002,30 +1233,101 @@ app.get('/api/factores-clave', async (req, res) => {
  *             properties:
  *               filters:
  *                 type: object
+ *                 description: Filtros demográficos para el análisis
  *                 properties:
- *                   gender: { type: string, example: "F" }
- *                   age_min: { type: integer, example: 18 }
- *                   age_max: { type: integer, example: 25 }
+ *                   gender: 
+ *                     type: string
+ *                     enum: [F, M, Femenino, Masculino, Female, Male]
+ *                     description: Filtrar por género
+ *                     example: "F"
+ *                   age_min: 
+ *                     type: integer
+ *                     minimum: 16
+ *                     maximum: 65
+ *                     description: Edad mínima
+ *                     example: 18
+ *                   age_max: 
+ *                     type: integer
+ *                     minimum: 16
+ *                     maximum: 65
+ *                     description: Edad máxima
+ *                     example: 25
  *                   university_group:
  *                     type: string
  *                     enum: [ucaldas, otras, todas]
+ *                     description: Filtrar por grupo universitario
  *                     example: ucaldas
  *               interventions:
  *                 type: array
+ *                 description: Lista de intervenciones a simular
  *                 items:
  *                   type: object
+ *                   required: [type, pct]
  *                   properties:
  *                     type:
  *                       type: string
  *                       enum: [tutoria_academica, salud_mental, actividad_fisica, gestion_tiempo, apoyo_economico, ambiente_residencia]
- *                     pct: { type: number, example: 20 }
+ *                       description: Tipo de intervención
+ *                       example: "tutoria_academica"
+ *                     pct: 
+ *                       type: number
+ *                       minimum: 0
+ *                       maximum: 100
+ *                       description: Porcentaje de efectividad de la intervención
+ *                       example: 20
  *               effectiveness:
  *                 type: number
- *                 description: Eficacia global 0..1 (default 0.5)
+ *                 minimum: 0
+ *                 maximum: 1
+ *                 description: Eficacia global del conjunto de intervenciones (0.0 = sin efecto, 1.0 = efecto máximo)
  *                 example: 0.5
+ *                 default: 0.5
  *     responses:
- *       200: { description: OK }
- *       500: { description: Error }
+ *       200:
+ *         description: Simulación completada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Simulación what-if completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     baseline:
+ *                       type: object
+ *                       description: "Métricas de línea base antes de intervenciones"
+ *                       properties:
+ *                         index_pct_ge4:
+ *                           type: number
+ *                           description: "Índice de bienestar base"
+ *                         items:
+ *                           type: array
+ *                           description: "Factores individuales de línea base"
+ *                     scenario:
+ *                       type: object
+ *                       description: "Métricas proyectadas después de intervenciones"
+ *                       properties:
+ *                         index_pct_ge4:
+ *                           type: number
+ *                           description: "Índice de bienestar proyectado"
+ *                         delta_index_pp:
+ *                           type: number
+ *                           description: "Cambio en puntos porcentuales"
+ *                         items:
+ *                           type: array
+ *                           description: "Factores individuales proyectados"
+ *       500:
+ *         description: Error en la simulación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.post('/api/what-if', async (req, res) => {
   const client = await pool.connect();

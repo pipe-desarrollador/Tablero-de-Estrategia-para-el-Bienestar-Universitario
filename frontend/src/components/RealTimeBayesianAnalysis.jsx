@@ -30,17 +30,26 @@ const RealTimeBayesianAnalysis = ({
 
   // Análisis bayesiano de las intervenciones
   const getBayesianAnalysis = () => {
+    // Definir intervenciones base
+    const interventions = [
+      { name: 'Tutoría Académica', value: tutoria, impact: 0.3 },
+      { name: 'Salud Mental', value: sueno, impact: 0.4 },
+      { name: 'Apoyo Financiero', value: finanzas, impact: 0.3 }
+    ];
+
+    // Calcular totalWeight para ambos casos
+    const totalWeight = interventions.reduce((sum, int) => sum + (int.value * int.impact), 0);
+    const maxPossible = interventions.reduce((sum, int) => sum + (100 * int.impact), 0);
+
     // Si tenemos datos reales del backend, usar esos valores
     if (baselineValue !== null && scenarioValue !== null) {
       const realImprovement = baselineValue - scenarioValue; // Mejora real del backend
       const realProbability = Math.abs(realImprovement) / baselineValue; // Probabilidad basada en mejora real
       
       return {
-        interventions: [
-          { name: 'Tutoría Académica', value: tutoria, impact: 0.3 },
-          { name: 'Salud Mental', value: sueno, impact: 0.4 },
-          { name: 'Apoyo Financiero', value: finanzas, impact: 0.3 }
-        ],
+        interventions,
+        totalWeight,
+        maxPossible,
         bayesianProbability: Math.min(realProbability, 1), // Limitar a 100%
         expectedImprovement: realImprovement,
         isRealData: true
@@ -48,14 +57,6 @@ const RealTimeBayesianAnalysis = ({
     }
 
     // Si no hay datos reales, calcular valores aproximados
-    const interventions = [
-      { name: 'Tutoría Académica', value: tutoria, impact: 0.3 },
-      { name: 'Salud Mental', value: sueno, impact: 0.4 },
-      { name: 'Apoyo Financiero', value: finanzas, impact: 0.3 }
-    ];
-
-    const totalWeight = interventions.reduce((sum, int) => sum + (int.value * int.impact), 0);
-    const maxPossible = interventions.reduce((sum, int) => sum + (100 * int.impact), 0);
     const bayesianProbability = totalWeight / maxPossible;
 
     return {
@@ -274,17 +275,31 @@ const RealTimeBayesianAnalysis = ({
               </div>
               <div>
                 <span className="font-medium">Contribución:</span>
-                <span className="ml-1">{((intervention.value * intervention.impact) / analysis.totalWeight * 100).toFixed(1)}%</span>
+                <span className="ml-1">
+                  {analysis.totalWeight > 0 
+                    ? ((intervention.value * intervention.impact) / analysis.totalWeight * 100).toFixed(1) + '%'
+                    : '0.0%'
+                  }
+                </span>
                 <p className="text-xs text-gray-500 mt-1">
-                  {((intervention.value * intervention.impact) / analysis.totalWeight * 100) > 40 ? 'Alta contribución' :
-                   ((intervention.value * intervention.impact) / analysis.totalWeight * 100) > 25 ? 'Contribución media' : 'Baja contribución'}
+                  {analysis.totalWeight > 0 
+                    ? (() => {
+                        const contribution = (intervention.value * intervention.impact) / analysis.totalWeight * 100;
+                        return contribution > 40 ? 'Alta contribución' :
+                               contribution > 25 ? 'Contribución media' : 'Baja contribución';
+                      })()
+                    : 'Sin contribución'
+                  }
                 </p>
               </div>
             </div>
             <div className="mt-2 p-2 bg-white rounded border-l-4 border-blue-400">
               <p className="text-xs text-gray-700">
                 <strong>Explicación:</strong> {intervention.name} al {intervention.value}% con peso {(intervention.impact * 100).toFixed(0)}% 
-                contribuye {((intervention.value * intervention.impact) / analysis.totalWeight * 100).toFixed(1)}% al resultado final.
+                contribuye {analysis.totalWeight > 0 
+                  ? ((intervention.value * intervention.impact) / analysis.totalWeight * 100).toFixed(1) + '%'
+                  : '0.0%'
+                } al resultado final.
               </p>
             </div>
           </div>

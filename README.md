@@ -114,14 +114,22 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 
 ---
 
-**Desarrollado con ❤️ para el análisis y mejora del bienestar universitario**
-<<<<<<< HEAD
-=======
-
----
-
 ## 📚 Documentación del Proyecto
 - Documento detallado del proyecto: [`docs/Documento_Proyecto.md`](docs/Documento_Proyecto.md)
 - Manual de usuario ampliado: [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md)
 - Swagger (API): `http://localhost:3000/api-docs`
->>>>>>> develop
+
+## 🐛 Correcciones Recientes
+
+### v1.1.0 - Corrección de Bug NaN% en Contribución
+- **Problema:** El campo "Contribución" mostraba "NaN%" en lugar de un porcentaje válido
+- **Causa:** División por `undefined` cuando `totalWeight` no estaba definido en el análisis con datos reales del backend
+- **Solución:** 
+  - Asegurado que `totalWeight` y `maxPossible` se calculen en ambos casos (datos reales y simulados)
+  - Agregada validación para evitar división por cero
+  - Mejorada la lógica de cálculo de contribución con manejo de casos edge
+- **Archivos modificados:** `frontend/src/components/RealTimeBayesianAnalysis.jsx`
+
+---
+
+**Desarrollado con ❤️ para el análisis y mejora del bienestar universitario**

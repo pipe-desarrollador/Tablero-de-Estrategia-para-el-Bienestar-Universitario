@@ -41,9 +41,11 @@ const validationErrorHandler = (error, req, res, next) => {
 const databaseErrorHandler = (error, req, res, next) => {
   if (error.code === '23505') { // Unique violation
     return res.status(409).json({
-      error: 'Conflict',
-      message: 'El recurso ya existe',
-      code: 'DUPLICATE_ENTRY'
+      success: false,
+      error: 'Registro duplicado detectado',
+      message: 'El registro ya existe en la base de datos. Se ha evitado la inserción duplicada.',
+      code: 'DUPLICATE_ENTRY',
+      details: 'El sistema detectó un intento de insertar un registro que ya existe. Esto puede ocurrir al cargar el mismo dataset múltiples veces.'
     });
   }
   

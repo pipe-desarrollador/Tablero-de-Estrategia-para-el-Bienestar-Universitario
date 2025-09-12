@@ -206,15 +206,15 @@ class StudentWellbeingNetwork extends BayesianNetwork {
     const improvementPercent = baselineValue > 0 ? (improvement / baselineValue) * 100 : 0;
     
     let explanation = `Análisis de Impacto para ${target}:\n\n`;
-    explanation += `Intervenciones aplicadas:\n`;
+    explanation += 'Intervenciones aplicadas:\n';
     for (const [intervention, value] of Object.entries(interventions)) {
       explanation += `- ${intervention}: ${value}\n`;
     }
-    explanation += `\nResultado:\n`;
+    explanation += '\nResultado:\n';
     explanation += `- Estado actual: ${baselineValue.toFixed(2)}\n`;
     explanation += `- Estado post-intervención: ${postValue.toFixed(2)}\n`;
     explanation += `- Mejora: ${improvement.toFixed(2)} (${improvementPercent.toFixed(1)}%)\n\n`;
-    explanation += `Distribución de probabilidades:\n`;
+    explanation += 'Distribución de probabilidades:\n';
     explanation += `- Baja: ${(postIntervention.baja * 100).toFixed(1)}%\n`;
     explanation += `- Media: ${(postIntervention.media * 100).toFixed(1)}%\n`;
     explanation += `- Alta: ${(postIntervention.alta * 100).toFixed(1)}%\n`;

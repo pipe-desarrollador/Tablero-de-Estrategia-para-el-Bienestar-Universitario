@@ -38,3 +38,23 @@ CREATE INDEX IF NOT EXISTS idx_survey_responses_source ON survey_responses (sour
 CREATE INDEX IF NOT EXISTS idx_survey_responses_gender ON survey_responses (gender);
 CREATE INDEX IF NOT EXISTS idx_survey_responses_age ON survey_responses (age);
 
+-- Restricciones para evitar duplicados
+-- Constraint único basado en combinación de campos clave para identificar registros duplicados
+-- Esto evita que se inserten registros con la misma combinación de datos esenciales
+CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_responses_unique_record 
+ON survey_responses (gender, age, stress_type, source, 
+                     COALESCE(palpitations, ''), COALESCE(anxiety, ''), 
+                     COALESCE(sleep_problems, ''), COALESCE(headaches, ''));
+
+-- Constraint adicional para evitar duplicados exactos (todos los campos iguales)
+-- Esto es más estricto y evita registros completamente idénticos
+CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_responses_exact_duplicate
+ON survey_responses (gender, age, stress_experience, palpitations, anxiety, 
+                     sleep_problems, anxiety_duplicate, headaches, irritability,
+                     concentration_issues, sadness, illness, loneliness,
+                     academic_overload, competition, relationship_stress,
+                     professor_difficulty, work_environment, leisure_time,
+                     home_environment, low_confidence_performance,
+                     low_confidence_subjects, academic_conflict, class_attendance,
+                     weight_change, stress_type, source);
+

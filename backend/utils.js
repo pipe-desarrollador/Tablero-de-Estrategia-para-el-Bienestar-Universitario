@@ -71,6 +71,128 @@ const isValidGender = (gender) => {
 };
 
 /**
+ * Verifica si un registro ya existe en la base de datos (prevención de duplicados)
+ * @param {Object} client - Cliente de PostgreSQL
+ * @param {Object} record - Registro a verificar
+ * @param {string} source - Fuente del dataset
+ * @returns {Promise<boolean>} true si el registro ya existe
+ * @example
+ * const exists = await checkDuplicateRecord(client, {gender: 'F', age: 25}, 'Stress_Dataset')
+ */
+const checkDuplicateRecord = async (client, record, source) => {
+  try {
+    const query = `
+      SELECT COUNT(*) as count
+      FROM survey_responses 
+      WHERE gender = $1 
+        AND age = $2 
+        AND stress_type = $3 
+        AND source = $4
+        AND COALESCE(palpitations, '') = COALESCE($5, '')
+        AND COALESCE(anxiety, '') = COALESCE($6, '')
+        AND COALESCE(sleep_problems, '') = COALESCE($7, '')
+        AND COALESCE(headaches, '') = COALESCE($8, '')
+    `;
+    
+    const params = [
+      record.gender,
+      record.age,
+      record.stress_type || null,
+      source,
+      record.palpitations || null,
+      record.anxiety || null,
+      record.sleep_problems || null,
+      record.headaches || null
+    ];
+    
+    const result = await client.query(query, params);
+    return parseInt(result.rows[0].count) > 0;
+  } catch (error) {
+    console.error('Error checking duplicate record:', error);
+    return false; // En caso de error, permitir inserción
+  }
+};
+
+/**
+ * Verifica duplicados exactos (todos los campos iguales)
+ * @param {Object} client - Cliente de PostgreSQL
+ * @param {Object} record - Registro a verificar
+ * @param {string} source - Fuente del dataset
+ * @returns {Promise<boolean>} true si existe un duplicado exacto
+ */
+const checkExactDuplicate = async (client, record, source) => {
+  try {
+    const query = `
+      SELECT COUNT(*) as count
+      FROM survey_responses 
+      WHERE gender = $1 
+        AND age = $2 
+        AND COALESCE(stress_experience, '') = COALESCE($3, '')
+        AND COALESCE(palpitations, '') = COALESCE($4, '')
+        AND COALESCE(anxiety, '') = COALESCE($5, '')
+        AND COALESCE(sleep_problems, '') = COALESCE($6, '')
+        AND COALESCE(anxiety_duplicate, '') = COALESCE($7, '')
+        AND COALESCE(headaches, '') = COALESCE($8, '')
+        AND COALESCE(irritability, '') = COALESCE($9, '')
+        AND COALESCE(concentration_issues, '') = COALESCE($10, '')
+        AND COALESCE(sadness, '') = COALESCE($11, '')
+        AND COALESCE(illness, '') = COALESCE($12, '')
+        AND COALESCE(loneliness, '') = COALESCE($13, '')
+        AND COALESCE(academic_overload, '') = COALESCE($14, '')
+        AND COALESCE(competition, '') = COALESCE($15, '')
+        AND COALESCE(relationship_stress, '') = COALESCE($16, '')
+        AND COALESCE(professor_difficulty, '') = COALESCE($17, '')
+        AND COALESCE(work_environment, '') = COALESCE($18, '')
+        AND COALESCE(leisure_time, '') = COALESCE($19, '')
+        AND COALESCE(home_environment, '') = COALESCE($20, '')
+        AND COALESCE(low_confidence_performance, '') = COALESCE($21, '')
+        AND COALESCE(low_confidence_subjects, '') = COALESCE($22, '')
+        AND COALESCE(academic_conflict, '') = COALESCE($23, '')
+        AND COALESCE(class_attendance, '') = COALESCE($24, '')
+        AND COALESCE(weight_change, '') = COALESCE($25, '')
+        AND COALESCE(stress_type, '') = COALESCE($26, '')
+        AND source = $27
+    `;
+    
+    const params = [
+      record.gender,
+      record.age,
+      record.stress_experience || null,
+      record.palpitations || null,
+      record.anxiety || null,
+      record.sleep_problems || null,
+      record.anxiety_duplicate || null,
+      record.headaches || null,
+      record.irritability || null,
+      record.concentration_issues || null,
+      record.sadness || null,
+      record.illness || null,
+      record.loneliness || null,
+      record.academic_overload || null,
+      record.competition || null,
+      record.relationship_stress || null,
+      record.professor_difficulty || null,
+      record.work_environment || null,
+      record.leisure_time || null,
+      record.home_environment || null,
+      record.low_confidence_performance || null,
+      record.low_confidence_subjects || null,
+      record.academic_conflict || null,
+      record.class_attendance || null,
+      record.weight_change || null,
+      record.stress_type || null,
+      source
+    ];
+    
+    const result = await client.query(query, params);
+    return parseInt(result.rows[0].count) > 0;
+  } catch (error) {
+    console.error('Error checking exact duplicate:', error);
+    return false; // En caso de error, permitir inserción
+  }
+};
+
+/**
  * Construye placeholders para queries SQL parametrizadas
  * @param {number} count - Número de parámetros
  * @returns {string} String de placeholders ($1, $2, $3, ...)
@@ -256,15 +378,19 @@ function normalizeLikertValue(value, scaleInfo) {
  * Normaliza todos los datos Likert en un conjunto de registros
  * @param {Array} records - Array de registros CSV
  * @param {Array} likertColumns - Array de nombres de columnas que contienen datos Likert
+ * @param {string} datasetType - Tipo de dataset ('Stress_Dataset', 'StressLevelDataset', 'Encuestas_UCaldas', etc.)
  * @returns {Object} Información sobre la normalización aplicada
  * @example
- * normalizeLikertData(records, ['anxiety', 'stress_level']) 
+ * normalizeLikertData(records, ['anxiety', 'stress_level'], 'Stress_Dataset') 
  * // returns { applied: true, columns: {...}, totalRecords: 100 }
  */
-function normalizeLikertData(records, likertColumns) {
+function normalizeLikertData(records, likertColumns, datasetType = null) {
   if (!records || records.length === 0 || !likertColumns || likertColumns.length === 0) {
     return { applied: false, columns: {}, totalRecords: 0 };
   }
+  
+  // Determinar si este dataset necesita escalado basado en su tipo
+  const shouldScale = datasetType && (datasetType === 'Stress_Dataset' || datasetType === 'StressLevelDataset');
   
   const normalizationInfo = {};
   let totalNormalized = 0;
@@ -282,8 +408,8 @@ function normalizeLikertData(records, likertColumns) {
         normalized: false
       };
       
-      // Si necesita normalización, aplicarla
-      if (scaleInfo.needsNormalization) {
+      // Si necesita normalización Y el dataset requiere escalado, aplicarla
+      if (scaleInfo.needsNormalization && shouldScale) {
         for (const record of records) {
           if (record[column] !== null && record[column] !== undefined && record[column] !== '') {
             const originalValue = record[column];
@@ -293,6 +419,10 @@ function normalizeLikertData(records, likertColumns) {
           }
         }
         normalizationInfo[column].normalized = true;
+      } else if (scaleInfo.needsNormalization && !shouldScale) {
+        // Marcar que se detectó necesidad de normalización pero no se aplicó por tipo de dataset
+        normalizationInfo[column].skipped = true;
+        normalizationInfo[column].reason = `Dataset type '${datasetType}' does not require scaling`;
       }
     }
   }
@@ -311,6 +441,8 @@ module.exports = {
   detectSeparator,
   isValidAge,
   isValidGender,
+  checkDuplicateRecord,
+  checkExactDuplicate,
   buildPlaceholders,
   buildWhereClause,
   calculateOffset,
