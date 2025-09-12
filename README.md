@@ -102,7 +102,8 @@ La estructura de la base de datos y los archivos soportados se mantiene como en 
 
 ## 🤝 Colaboración
 
-- **Base URL:** `http://localhost:3000`
+- **Base URL (Local):** `http://localhost:3000`
+- **Base URL (Producción):** `https://nodejs-production-42b9.up.railway.app`
 - **Documentación:** `/api-docs`
 - **Endpoints principales:** `/api/upload-dataset`, `/api/stats`, `/api/factores-clave`, `/api/compare/likert-ge4`, `/api/what-if`
 - **Formato de respuesta:** JSON estándar
@@ -123,8 +124,8 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 
 **¡Prueba la aplicación sin instalar nada!**
 
-- **🚀 Aplicación Web:** [Ver Demo en Vivo](https://tablero-bienestar.vercel.app) *(Próximamente)*
-- **📚 API Docs:** [Documentación Interactiva](https://tablero-bienestar-api.railway.app/api-docs) *(Próximamente)*
+- **🚀 Aplicación Web:** [Ver Demo en Vivo](https://tablero-bienestar.vercel.app) ✅ **¡FUNCIONANDO!**
+- **📚 API Docs:** [Documentación Interactiva](https://nodejs-production-42b9.up.railway.app/api-docs) ✅ **¡FUNCIONANDO!**
 - **📊 Datos de Prueba:** Incluye dataset de demostración con 20+ registros realistas
 
 ### 🎯 Características de la Demo
@@ -147,6 +148,12 @@ Si prefieres ejecutar localmente, sigue la [Guía de Instalación](#-instalació
   - Agregada validación para evitar división por cero
   - Mejorada la lógica de cálculo de contribución con manejo de casos edge
 - **Archivos modificados:** `frontend/src/components/RealTimeBayesianAnalysis.jsx`
+
+### v1.2.0 - Deployment en Producción
+- **Frontend:** Desplegado exitosamente en Vercel
+- **Backend:** Desplegado exitosamente en Railway con PostgreSQL
+- **Demo en Vivo:** Disponible para pruebas sin instalación local
+- **URLs de Producción:** Actualizadas en documentación
 
 ---
 
