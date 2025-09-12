@@ -119,6 +119,24 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 - Manual de usuario ampliado: [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md)
 - Swagger (API): `http://localhost:3000/api-docs`
 
+## 🌐 Demostración en Vivo
+
+**¡Prueba la aplicación sin instalar nada!**
+
+- **🚀 Aplicación Web:** [Ver Demo en Vivo](https://tablero-bienestar.vercel.app) *(Próximamente)*
+- **📚 API Docs:** [Documentación Interactiva](https://tablero-bienestar-api.railway.app/api-docs) *(Próximamente)*
+- **📊 Datos de Prueba:** Incluye dataset de demostración con 20+ registros realistas
+
+### 🎯 Características de la Demo
+- ✅ **Datos Pre-cargados:** Dataset de demostración con estudiantes de diferentes perfiles
+- ✅ **Análisis Completo:** Todas las funcionalidades disponibles para probar
+- ✅ **Simulaciones What-If:** Prueba diferentes escenarios de intervención
+- ✅ **Análisis Bayesiano:** Explora las probabilidades de éxito de las intervenciones
+- ✅ **Sin Registro:** Acceso inmediato sin necesidad de crear cuenta
+
+### 🛠️ Para Desarrolladores
+Si prefieres ejecutar localmente, sigue la [Guía de Instalación](#-instalación-y-puesta-en-marcha) o consulta la [Guía de Despliegue](deploy-guide.md) para crear tu propia instancia.
+
 ## 🐛 Correcciones Recientes
 
 ### v1.1.0 - Corrección de Bug NaN% en Contribución
