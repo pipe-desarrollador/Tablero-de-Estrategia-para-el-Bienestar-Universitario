@@ -23,8 +23,9 @@ export async function getSerie(params = {}) {
 // === Comparativos (línea) ===
 export async function getFactoresComparativo() {
   // Devuelve las series para el gráfico de línea (UCaldas vs Otras)
-  const res = await getJSON('/api/compare/likert-ge4');
-  return Array.isArray(res?.series) ? res.series : [];
+  const res = await fetch(`${API_URL}/api/compare/likert-ge4`);
+  const json = await okJSON(res);
+  return Array.isArray(json?.series) ? json.series : [];
 }
 
 export async function getFactoresClave() {
