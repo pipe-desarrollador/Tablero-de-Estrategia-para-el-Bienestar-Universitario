@@ -80,6 +80,18 @@ app.get('/api/factores', (req, res) => {
   });
 });
 
+app.get('/api/factores-clave', (req, res) => {
+  res.json({
+    success: true,
+    data: [
+      { factor: 'Estrés Académico', impacto: 0.8, frecuencia: 0.7 },
+      { factor: 'Carga de Trabajo', impacto: 0.6, frecuencia: 0.8 },
+      { factor: 'Relaciones Sociales', impacto: 0.5, frecuencia: 0.6 },
+      { factor: 'Salud Mental', impacto: 0.9, frecuencia: 0.4 }
+    ]
+  });
+});
+
 app.get('/api/simulaciones', (req, res) => {
   res.json({
     success: true,
