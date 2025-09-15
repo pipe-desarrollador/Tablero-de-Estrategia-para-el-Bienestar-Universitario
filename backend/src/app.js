@@ -1768,6 +1768,30 @@ app.get('/api/bayesian-stats', async (req, res) => {
 
 
 
+// Endpoint temporal para crear la tabla (solo para setup inicial)
+app.post('/api/setup-database', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Leer el archivo schema.sql
+    const fs = require('fs');
+    const path = require('path');
+    const schemaPath = path.join(__dirname, '../../db/schema.sql');
+    const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
+    
+    // Ejecutar el script SQL
+    await client.query(schemaSQL);
+    
+    return sendResponse(res, true, 'Database schema created successfully', {
+      message: 'Table survey_responses created with all indexes and constraints'
+    });
+  } catch (error) {
+    console.error('Database setup error:', error);
+    return sendError(res, 'Error setting up database', 500, error.message);
+  } finally {
+    client.release();
+  }
+});
+
 app.use((req, res) => {
   return sendError(res, 'Endpoint not found', 404, req.path);
 });
