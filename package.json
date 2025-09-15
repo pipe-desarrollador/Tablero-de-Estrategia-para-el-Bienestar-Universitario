@@ -4,7 +4,7 @@
   "description": "Tablero de Estrategia para el Bienestar Universitario",
   "main": "start.js",
   "scripts": {
-    "start": "node test-server-simple.js",
+    "start": "cd backend && npm start",
     "dev": "cd backend && npm run dev",
     "build": "echo 'Build step skipped for Railway deployment'",
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
