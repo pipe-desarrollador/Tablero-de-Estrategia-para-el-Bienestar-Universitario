@@ -2,7 +2,7 @@
   "name": "proyecto-dss",
   "version": "1.0.0",
   "description": "",
-  "main": "src/server.js",
+  "main": "src/simple-server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/simple-server.js",
