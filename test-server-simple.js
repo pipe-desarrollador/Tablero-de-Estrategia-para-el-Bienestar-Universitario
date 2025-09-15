@@ -105,6 +105,48 @@ app.get('/api/simulaciones', (req, res) => {
   });
 });
 
+app.get('/api/bayesian-stats', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      totalWeight: 2.5,
+      interventions: [
+        { name: 'Reducción de carga académica', value: 0.8, impact: 0.7 },
+        { name: 'Programas de bienestar', value: 0.6, impact: 0.6 },
+        { name: 'Apoyo psicológico', value: 0.9, impact: 0.8 }
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+app.get('/api/what-if', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      scenarios: [
+        { name: 'Escenario 1', probability: 0.75, impact: 0.8 },
+        { name: 'Escenario 2', probability: 0.65, impact: 0.7 },
+        { name: 'Escenario 3', probability: 0.85, impact: 0.9 }
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+app.get('/api/table-structure', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      tables: [
+        { name: 'survey_responses', columns: ['id', 'student_id', 'stress_level', 'academic_load', 'social_relations', 'mental_health', 'created_at'] },
+        { name: 'students', columns: ['id', 'name', 'university', 'program', 'year', 'created_at'] }
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Simple server listening on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
