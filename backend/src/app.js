@@ -16,6 +16,16 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
 // ---- utilidades ----
 const { norm, detectSeparator, normalizeLikertData, checkDuplicateRecord, checkExactDuplicate } = require('../utils');
 const { config } = require('../config');
@@ -48,11 +58,46 @@ const sendError = (res, message, statusCode = 500, error = null) => {
 };
 
 // ---- DB / upload ----
+console.log('Database config:', JSON.stringify(config.database, null, 2));
 const pool = new Pool(config.database);
+
+// Test database connection
+pool.on('connect', () => {
+  console.log('✅ Database connected successfully');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Database connection error:', err);
+});
+
 const upload = multer();
 
 // ---- health/debug ----
 app.get('/ping', (req, res) => res.send('pong'));
+
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    
+    res.json({
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(500).json({
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 app.get('/_routes', (_req, res) => {
   const routes = [];
   const stack = app?._router?.stack ?? [];
