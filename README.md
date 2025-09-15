@@ -115,11 +115,6 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 
 ---
 
-## 📚 Documentación del Proyecto
-- Documento detallado del proyecto: [`docs/Documento_Proyecto.md`](docs/Documento_Proyecto.md)
-- Manual de usuario ampliado: [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md)
-- Swagger (API): `http://localhost:3000/api-docs`
-
 ## 🌐 Demostración en Vivo
 
 **¡Prueba la aplicación sin instalar nada!**
