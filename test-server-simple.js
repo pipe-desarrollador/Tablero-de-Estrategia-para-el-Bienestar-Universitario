@@ -326,4 +326,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Simple server listening on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Database URL: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
+  console.log(`🔄 Server version: 2.0 - All endpoints ready`);
 });
