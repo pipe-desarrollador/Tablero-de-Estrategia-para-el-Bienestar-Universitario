@@ -1,6 +1,20 @@
 {
+  "name": "tablero-bienestar-universitario",
+  "version": "1.0.0",
+  "description": "Tablero de Estrategia para el Bienestar Universitario",
+  "main": "start.js",
+  "scripts": {
+    "start": "cd backend && node test-server.js",
+    "dev": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": ["bienestar", "universitario", "dashboard", "analytics"],
+  "author": "Felipe",
+  "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "recharts": "^3.1.2"
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "cors": "^2.8.5"
   }
 }
