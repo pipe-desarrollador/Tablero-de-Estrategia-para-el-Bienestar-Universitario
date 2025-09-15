@@ -138,9 +138,14 @@ app.get('/api/table-structure', (req, res) => {
   res.json({
     success: true,
     data: {
-      tables: [
-        { name: 'survey_responses', columns: ['id', 'student_id', 'stress_level', 'academic_load', 'social_relations', 'mental_health', 'created_at'] },
-        { name: 'students', columns: ['id', 'name', 'university', 'program', 'year', 'created_at'] }
+      survey_responses: [
+        { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO' },
+        { column_name: 'student_id', data_type: 'VARCHAR', is_nullable: 'NO' },
+        { column_name: 'stress_level', data_type: 'INTEGER', is_nullable: 'NO' },
+        { column_name: 'academic_load', data_type: 'INTEGER', is_nullable: 'NO' },
+        { column_name: 'social_relations', data_type: 'INTEGER', is_nullable: 'NO' },
+        { column_name: 'mental_health', data_type: 'INTEGER', is_nullable: 'NO' },
+        { column_name: 'created_at', data_type: 'TIMESTAMP', is_nullable: 'NO' }
       ],
       timestamp: new Date().toISOString()
     }
