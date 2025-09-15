@@ -75,6 +75,18 @@ app.get('/api/stats', (req, res) => {
 app.get('/api/compare/likert-ge4', (req, res) => {
   res.json({
     success: true,
+    data: {
+      series: [
+        {
+          name: 'UCaldas',
+          data: [65, 72, 68, 75, 70, 62, 58, 67, 71, 69]
+        },
+        {
+          name: 'Otras Universidades',
+          data: [58, 65, 62, 68, 64, 55, 52, 60, 66, 63]
+        }
+      ]
+    },
     series: [
       {
         name: 'UCaldas',
@@ -174,59 +186,40 @@ app.get('/api/factores', (req, res) => {
 app.get('/api/factores-clave', (req, res) => {
   res.json({
     success: true,
-    data: [
-      { 
-        factor: 'Estrés Académico', 
-        impacto: 0.8, 
-        frecuencia: 0.7,
-        descripcion: 'Presión por exámenes, tareas y rendimiento académico',
-        estudiantes_afectados: 105,
-        severidad: 'Alta'
-      },
-      { 
-        factor: 'Carga de Trabajo', 
-        impacto: 0.6, 
-        frecuencia: 0.8,
-        descripcion: 'Demandas excesivas de trabajo y responsabilidades',
-        estudiantes_afectados: 120,
-        severidad: 'Media'
-      },
-      { 
-        factor: 'Relaciones Sociales', 
-        impacto: 0.5, 
-        frecuencia: 0.6,
-        descripcion: 'Dificultades en relaciones interpersonales y aislamiento',
-        estudiantes_afectados: 90,
-        severidad: 'Media'
-      },
-      { 
-        factor: 'Salud Mental', 
-        impacto: 0.9, 
-        frecuencia: 0.4,
-        descripcion: 'Problemas de ansiedad, depresión y bienestar emocional',
-        estudiantes_afectados: 60,
-        severidad: 'Crítica'
-      },
-      { 
-        factor: 'Presión Familiar', 
-        impacto: 0.7, 
-        frecuencia: 0.5,
-        descripcion: 'Expectativas y presión de la familia',
-        estudiantes_afectados: 75,
-        severidad: 'Alta'
-      },
-      { 
-        factor: 'Problemas Económicos', 
-        impacto: 0.6, 
-        frecuencia: 0.3,
-        descripcion: 'Dificultades financieras y preocupaciones económicas',
-        estudiantes_afectados: 45,
-        severidad: 'Media'
-      }
-    ],
-    total_factores: 6,
-    factor_critico: 'Salud Mental',
-    factor_mas_frecuente: 'Carga de Trabajo'
+    data: {
+      resultados: [
+        {
+          universidad: 'UCaldas',
+          factores: [
+            { factor: 'Estrés Académico', promedio: 3.2, porcentaje_ge4: 65 },
+            { factor: 'Carga de Trabajo', promedio: 3.6, porcentaje_ge4: 72 },
+            { factor: 'Relaciones Sociales', promedio: 2.8, porcentaje_ge4: 68 },
+            { factor: 'Salud Mental', promedio: 3.8, porcentaje_ge4: 75 },
+            { factor: 'Bienestar General', promedio: 3.4, porcentaje_ge4: 70 },
+            { factor: 'Presión Familiar', promedio: 2.9, porcentaje_ge4: 62 },
+            { factor: 'Problemas Económicos', promedio: 2.6, porcentaje_ge4: 58 },
+            { factor: 'Expectativas Laborales', promedio: 3.3, porcentaje_ge4: 67 },
+            { factor: 'Competencia Académica', promedio: 3.5, porcentaje_ge4: 71 },
+            { factor: 'Satisfacción Personal', promedio: 3.1, porcentaje_ge4: 69 }
+          ]
+        },
+        {
+          universidad: 'Otras Universidades',
+          factores: [
+            { factor: 'Estrés Académico', promedio: 2.9, porcentaje_ge4: 58 },
+            { factor: 'Carga de Trabajo', promedio: 3.2, porcentaje_ge4: 65 },
+            { factor: 'Relaciones Sociales', promedio: 2.5, porcentaje_ge4: 62 },
+            { factor: 'Salud Mental', promedio: 3.4, porcentaje_ge4: 68 },
+            { factor: 'Bienestar General', promedio: 3.0, porcentaje_ge4: 64 },
+            { factor: 'Presión Familiar', promedio: 2.7, porcentaje_ge4: 55 },
+            { factor: 'Problemas Económicos', promedio: 2.4, porcentaje_ge4: 52 },
+            { factor: 'Expectativas Laborales', promedio: 3.0, porcentaje_ge4: 60 },
+            { factor: 'Competencia Académica', promedio: 3.3, porcentaje_ge4: 66 },
+            { factor: 'Satisfacción Personal', promedio: 2.8, porcentaje_ge4: 63 }
+          ]
+        }
+      ]
+    }
   });
 });
 
@@ -309,6 +302,22 @@ app.post('/api/clear-database', (req, res) => {
     data: {
       recordsDeleted: 150,
       timestamp: new Date().toISOString()
+    }
+  });
+});
+
+app.get('/api/resumen', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      promedio: 3.2,
+      top: [
+        { factor: 'Salud Mental', valor: 3.8, porcentaje: 75 },
+        { factor: 'Carga de Trabajo', valor: 3.6, porcentaje: 72 },
+        { factor: 'Competencia Académica', valor: 3.5, porcentaje: 71 },
+        { factor: 'Bienestar General', valor: 3.4, porcentaje: 70 },
+        { factor: 'Satisfacción Personal', valor: 3.1, porcentaje: 69 }
+      ]
     }
   });
 });
