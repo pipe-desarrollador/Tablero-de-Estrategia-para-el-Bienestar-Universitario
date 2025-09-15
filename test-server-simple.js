@@ -147,6 +147,29 @@ app.get('/api/table-structure', (req, res) => {
   });
 });
 
+app.post('/api/upload-dataset', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Dataset uploaded successfully (demo mode)',
+    data: {
+      recordsProcessed: 150,
+      fileName: 'demo_dataset.csv',
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+app.post('/api/clear-database', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Database cleared successfully (demo mode)',
+    data: {
+      recordsDeleted: 150,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Simple server listening on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
