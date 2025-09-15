@@ -46,6 +46,27 @@ app.get('/api/stats', (req, res) => {
       totalStudents: 150,
       averageStress: 3.2,
       highStressPercentage: 25,
+      lowStressPercentage: 35,
+      mediumStressPercentage: 40,
+      stressDistribution: {
+        '1': 15,
+        '2': 20,
+        '3': 40,
+        '4': 20,
+        '5': 5
+      },
+      academicLoad: {
+        average: 3.4,
+        high: 30
+      },
+      socialRelations: {
+        average: 2.8,
+        poor: 25
+      },
+      mentalHealth: {
+        average: 3.1,
+        concerning: 28
+      },
       timestamp: new Date().toISOString()
     }
   });
@@ -57,14 +78,37 @@ app.get('/api/compare/likert-ge4', (req, res) => {
     series: [
       {
         name: 'UCaldas',
-        data: [65, 72, 68, 75, 70]
+        data: [65, 72, 68, 75, 70, 62, 58, 67, 71, 69]
       },
       {
         name: 'Otras Universidades',
-        data: [58, 65, 62, 68, 64]
+        data: [58, 65, 62, 68, 64, 55, 52, 60, 66, 63]
       }
     ],
-    categories: ['Estrés Académico', 'Carga de Trabajo', 'Relaciones Sociales', 'Salud Mental', 'Bienestar General']
+    categories: [
+      'Estrés Académico', 
+      'Carga de Trabajo', 
+      'Relaciones Sociales', 
+      'Salud Mental', 
+      'Bienestar General',
+      'Presión Familiar',
+      'Problemas Económicos',
+      'Expectativas Laborales',
+      'Competencia Académica',
+      'Satisfacción Personal'
+    ],
+    summary: {
+      ucaldas: {
+        average: 67.7,
+        highest: 'Salud Mental (75%)',
+        lowest: 'Problemas Económicos (58%)'
+      },
+      otras: {
+        average: 61.3,
+        highest: 'Salud Mental (68%)',
+        lowest: 'Problemas Económicos (52%)'
+      }
+    }
   });
 });
 
@@ -72,11 +116,58 @@ app.get('/api/factores', (req, res) => {
   res.json({
     success: true,
     data: [
-      { factor: 'Estrés Académico', impacto: 0.8, frecuencia: 0.7 },
-      { factor: 'Carga de Trabajo', impacto: 0.6, frecuencia: 0.8 },
-      { factor: 'Relaciones Sociales', impacto: 0.5, frecuencia: 0.6 },
-      { factor: 'Salud Mental', impacto: 0.9, frecuencia: 0.4 }
-    ]
+      { 
+        factor: 'Estrés Académico', 
+        impacto: 0.8, 
+        frecuencia: 0.7,
+        descripcion: 'Presión por exámenes, tareas y rendimiento académico',
+        estudiantes_afectados: 105,
+        severidad: 'Alta'
+      },
+      { 
+        factor: 'Carga de Trabajo', 
+        impacto: 0.6, 
+        frecuencia: 0.8,
+        descripcion: 'Demandas excesivas de trabajo y responsabilidades',
+        estudiantes_afectados: 120,
+        severidad: 'Media'
+      },
+      { 
+        factor: 'Relaciones Sociales', 
+        impacto: 0.5, 
+        frecuencia: 0.6,
+        descripcion: 'Dificultades en relaciones interpersonales y aislamiento',
+        estudiantes_afectados: 90,
+        severidad: 'Media'
+      },
+      { 
+        factor: 'Salud Mental', 
+        impacto: 0.9, 
+        frecuencia: 0.4,
+        descripcion: 'Problemas de ansiedad, depresión y bienestar emocional',
+        estudiantes_afectados: 60,
+        severidad: 'Crítica'
+      },
+      { 
+        factor: 'Presión Familiar', 
+        impacto: 0.7, 
+        frecuencia: 0.5,
+        descripcion: 'Expectativas y presión de la familia',
+        estudiantes_afectados: 75,
+        severidad: 'Alta'
+      },
+      { 
+        factor: 'Problemas Económicos', 
+        impacto: 0.6, 
+        frecuencia: 0.3,
+        descripcion: 'Dificultades financieras y preocupaciones económicas',
+        estudiantes_afectados: 45,
+        severidad: 'Media'
+      }
+    ],
+    total_factores: 6,
+    factor_critico: 'Salud Mental',
+    factor_mas_frecuente: 'Carga de Trabajo'
   });
 });
 
@@ -84,11 +175,58 @@ app.get('/api/factores-clave', (req, res) => {
   res.json({
     success: true,
     data: [
-      { factor: 'Estrés Académico', impacto: 0.8, frecuencia: 0.7 },
-      { factor: 'Carga de Trabajo', impacto: 0.6, frecuencia: 0.8 },
-      { factor: 'Relaciones Sociales', impacto: 0.5, frecuencia: 0.6 },
-      { factor: 'Salud Mental', impacto: 0.9, frecuencia: 0.4 }
-    ]
+      { 
+        factor: 'Estrés Académico', 
+        impacto: 0.8, 
+        frecuencia: 0.7,
+        descripcion: 'Presión por exámenes, tareas y rendimiento académico',
+        estudiantes_afectados: 105,
+        severidad: 'Alta'
+      },
+      { 
+        factor: 'Carga de Trabajo', 
+        impacto: 0.6, 
+        frecuencia: 0.8,
+        descripcion: 'Demandas excesivas de trabajo y responsabilidades',
+        estudiantes_afectados: 120,
+        severidad: 'Media'
+      },
+      { 
+        factor: 'Relaciones Sociales', 
+        impacto: 0.5, 
+        frecuencia: 0.6,
+        descripcion: 'Dificultades en relaciones interpersonales y aislamiento',
+        estudiantes_afectados: 90,
+        severidad: 'Media'
+      },
+      { 
+        factor: 'Salud Mental', 
+        impacto: 0.9, 
+        frecuencia: 0.4,
+        descripcion: 'Problemas de ansiedad, depresión y bienestar emocional',
+        estudiantes_afectados: 60,
+        severidad: 'Crítica'
+      },
+      { 
+        factor: 'Presión Familiar', 
+        impacto: 0.7, 
+        frecuencia: 0.5,
+        descripcion: 'Expectativas y presión de la familia',
+        estudiantes_afectados: 75,
+        severidad: 'Alta'
+      },
+      { 
+        factor: 'Problemas Económicos', 
+        impacto: 0.6, 
+        frecuencia: 0.3,
+        descripcion: 'Dificultades financieras y preocupaciones económicas',
+        estudiantes_afectados: 45,
+        severidad: 'Media'
+      }
+    ],
+    total_factores: 6,
+    factor_critico: 'Salud Mental',
+    factor_mas_frecuente: 'Carga de Trabajo'
   });
 });
 
