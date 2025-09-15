@@ -1,1 +1,1 @@
-web: node test-server-simple.js
+web: cd backend && npm start
