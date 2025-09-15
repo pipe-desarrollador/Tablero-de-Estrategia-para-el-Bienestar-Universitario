@@ -48,13 +48,7 @@ const sendError = (res, message, statusCode = 500, error = null) => {
 };
 
 // ---- DB / upload ----
-const pool = new Pool({
-  user: config.database.user,
-  host: config.database.host,
-  database: config.database.database,
-  password: config.database.password,
-  port: config.database.port,
-});
+const pool = new Pool(config.database);
 const upload = multer();
 
 // ---- health/debug ----

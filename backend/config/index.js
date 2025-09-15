@@ -15,7 +15,13 @@ const config = {
   },
 
   // Configuración de la base de datos
-  database: {
+  database: process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 20, // máximo de conexiones en el pool
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000
+  } : {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'stress_db',
