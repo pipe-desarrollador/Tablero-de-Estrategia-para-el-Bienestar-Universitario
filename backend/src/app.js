@@ -75,6 +75,17 @@ const upload = multer();
 // ---- health/debug ----
 app.get('/ping', (req, res) => res.send('pong'));
 
+app.get('/debug', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    database_url: process.env.DATABASE_URL ? 'configured' : 'not configured',
+    port: process.env.PORT || 3000,
+    node_version: process.version
+  });
+});
+
 app.get('/health', async (req, res) => {
   try {
     // Test database connection
