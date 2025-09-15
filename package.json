@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node test-server-simple.js",
     "dev": "cd backend && npm run dev",
-    "build": "cd frontend && npm run build",
+    "build": "echo 'Build step skipped for Railway deployment'",
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "migrate": "echo 'No migrations needed for simple server'"
   },
