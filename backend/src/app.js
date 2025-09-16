@@ -1806,50 +1806,14 @@ app.get('/api/bayesian-stats', async (req, res) => {
 app.post('/api/setup-database', async (req, res) => {
   const client = await pool.connect();
   try {
-    // Crear la tabla directamente con SQL
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS survey_responses (
-        survey_response_id SERIAL PRIMARY KEY,
-        gender VARCHAR(50),
-        age INTEGER,
-        stress_experience VARCHAR(255),
-        palpitations VARCHAR(10),
-        anxiety VARCHAR(10),
-        sleep_problems VARCHAR(10),
-        anxiety_duplicate VARCHAR(10),
-        headaches VARCHAR(10),
-        irritability VARCHAR(10),
-        concentration_issues VARCHAR(10),
-        sadness VARCHAR(10),
-        illness VARCHAR(255),
-        loneliness VARCHAR(255),
-        academic_overload VARCHAR(255),
-        competition VARCHAR(255),
-        relationship_stress VARCHAR(255),
-        professor_difficulty VARCHAR(255),
-        work_environment VARCHAR(255),
-        leisure_time VARCHAR(255),
-        home_environment VARCHAR(255),
-        low_confidence_performance VARCHAR(255),
-        low_confidence_subjects VARCHAR(255),
-        academic_conflict VARCHAR(255),
-        class_attendance VARCHAR(255),
-        weight_change VARCHAR(255),
-        stress_type VARCHAR(255),
-        source VARCHAR(64),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `;
+    // Leer el archivo schema.sql
+    const fs = require('fs');
+    const path = require('path');
+    const schemaPath = path.join(__dirname, '../../db/schema.sql');
+    const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
     
     // Ejecutar el script SQL
-    await client.query(createTableSQL);
-    
-    // Crear índices
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_survey_responses_source ON survey_responses (source);
-      CREATE INDEX IF NOT EXISTS idx_survey_responses_gender ON survey_responses (gender);
-      CREATE INDEX IF NOT EXISTS idx_survey_responses_age ON survey_responses (age);
-    `);
+    await client.query(schemaSQL);
     
     return sendResponse(res, true, 'Database schema created successfully', {
       message: 'Table survey_responses created with all indexes and constraints'
@@ -1857,6 +1821,208 @@ app.post('/api/setup-database', async (req, res) => {
   } catch (error) {
     console.error('Database setup error:', error);
     return sendError(res, 'Error setting up database', 500, error.message);
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint para cargar datos de demostración
+app.post('/api/load-demo-data', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Primero verificar si ya hay datos
+    const countResult = await client.query('SELECT COUNT(*) FROM survey_responses');
+    const existingCount = parseInt(countResult.rows[0].count);
+    
+    if (existingCount > 0) {
+      return sendResponse(res, true, 'Demo data already exists', {
+        message: `Database already contains ${existingCount} records`,
+        count: existingCount
+      });
+    }
+
+    // Datos de demostración realistas
+    const demoData = [
+      {
+        gender: 'Femenino',
+        age: 20,
+        stress_experience: 'Moderado',
+        palpitations: 'Sí',
+        anxiety: 'Sí',
+        sleep_problems: 'Sí',
+        anxiety_duplicate: 'No',
+        headaches: 'Sí',
+        irritability: 'Sí',
+        concentration_issues: 'Sí',
+        sadness: 'No',
+        illness: 'Ninguna',
+        loneliness: 'A veces',
+        academic_overload: 'Mucho',
+        competition: 'Moderada',
+        relationship_stress: 'Poca',
+        professor_difficulty: 'Algunos',
+        work_environment: 'Bueno',
+        leisure_time: 'Poco',
+        home_environment: 'Bueno',
+        low_confidence_performance: 'A veces',
+        low_confidence_subjects: 'Algunas',
+        academic_conflict: 'Poco',
+        class_attendance: 'Regular',
+        weight_change: 'Estable',
+        stress_type: 'Académico',
+        source: 'demo'
+      },
+      {
+        gender: 'Masculino',
+        age: 22,
+        stress_experience: 'Alto',
+        palpitations: 'No',
+        anxiety: 'Sí',
+        sleep_problems: 'Sí',
+        anxiety_duplicate: 'Sí',
+        headaches: 'No',
+        irritability: 'Sí',
+        concentration_issues: 'Sí',
+        sadness: 'Sí',
+        illness: 'Resfriado frecuente',
+        loneliness: 'Frecuente',
+        academic_overload: 'Extremo',
+        competition: 'Alta',
+        relationship_stress: 'Mucha',
+        professor_difficulty: 'Muchos',
+        work_environment: 'Regular',
+        leisure_time: 'Muy poco',
+        home_environment: 'Regular',
+        low_confidence_performance: 'Frecuente',
+        low_confidence_subjects: 'Muchas',
+        academic_conflict: 'Mucho',
+        class_attendance: 'Irregular',
+        weight_change: 'Pérdida',
+        stress_type: 'Académico y Personal',
+        source: 'demo'
+      },
+      {
+        gender: 'Femenino',
+        age: 19,
+        stress_experience: 'Bajo',
+        palpitations: 'No',
+        anxiety: 'No',
+        sleep_problems: 'No',
+        anxiety_duplicate: 'No',
+        headaches: 'No',
+        irritability: 'No',
+        concentration_issues: 'No',
+        sadness: 'No',
+        illness: 'Ninguna',
+        loneliness: 'Rara vez',
+        academic_overload: 'Poco',
+        competition: 'Baja',
+        relationship_stress: 'Poca',
+        professor_difficulty: 'Pocos',
+        work_environment: 'Excelente',
+        leisure_time: 'Suficiente',
+        home_environment: 'Excelente',
+        low_confidence_performance: 'Rara vez',
+        low_confidence_subjects: 'Pocas',
+        academic_conflict: 'Poco',
+        class_attendance: 'Excelente',
+        weight_change: 'Estable',
+        stress_type: 'Mínimo',
+        source: 'demo'
+      },
+      {
+        gender: 'Masculino',
+        age: 21,
+        stress_experience: 'Moderado',
+        palpitations: 'A veces',
+        anxiety: 'A veces',
+        sleep_problems: 'A veces',
+        anxiety_duplicate: 'No',
+        headaches: 'A veces',
+        irritability: 'A veces',
+        concentration_issues: 'A veces',
+        sadness: 'A veces',
+        illness: 'Dolores de cabeza',
+        loneliness: 'A veces',
+        academic_overload: 'Moderado',
+        competition: 'Moderada',
+        relationship_stress: 'Moderada',
+        professor_difficulty: 'Algunos',
+        work_environment: 'Bueno',
+        leisure_time: 'Moderado',
+        home_environment: 'Bueno',
+        low_confidence_performance: 'A veces',
+        low_confidence_subjects: 'Algunas',
+        academic_conflict: 'Moderado',
+        class_attendance: 'Bueno',
+        weight_change: 'Estable',
+        stress_type: 'Académico',
+        source: 'demo'
+      },
+      {
+        gender: 'Femenino',
+        age: 23,
+        stress_experience: 'Alto',
+        palpitations: 'Sí',
+        anxiety: 'Sí',
+        sleep_problems: 'Sí',
+        anxiety_duplicate: 'Sí',
+        headaches: 'Sí',
+        irritability: 'Sí',
+        concentration_issues: 'Sí',
+        sadness: 'Sí',
+        illness: 'Ansiedad',
+        loneliness: 'Frecuente',
+        academic_overload: 'Extremo',
+        competition: 'Alta',
+        relationship_stress: 'Mucha',
+        professor_difficulty: 'Muchos',
+        work_environment: 'Regular',
+        leisure_time: 'Muy poco',
+        home_environment: 'Regular',
+        low_confidence_performance: 'Frecuente',
+        low_confidence_subjects: 'Muchas',
+        academic_conflict: 'Mucho',
+        class_attendance: 'Irregular',
+        weight_change: 'Pérdida',
+        stress_type: 'Académico y Personal',
+        source: 'demo'
+      }
+    ];
+
+    // Insertar datos de demostración
+    const insertQuery = `
+      INSERT INTO survey_responses (
+        gender, age, stress_experience, palpitations, anxiety, sleep_problems,
+        anxiety_duplicate, headaches, irritability, concentration_issues, sadness,
+        illness, loneliness, academic_overload, competition, relationship_stress,
+        professor_difficulty, work_environment, leisure_time, home_environment,
+        low_confidence_performance, low_confidence_subjects, academic_conflict,
+        class_attendance, weight_change, stress_type, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+    `;
+
+    for (const data of demoData) {
+      await client.query(insertQuery, [
+        data.gender, data.age, data.stress_experience, data.palpitations, data.anxiety,
+        data.sleep_problems, data.anxiety_duplicate, data.headaches, data.irritability,
+        data.concentration_issues, data.sadness, data.illness, data.loneliness,
+        data.academic_overload, data.competition, data.relationship_stress,
+        data.professor_difficulty, data.work_environment, data.leisure_time,
+        data.home_environment, data.low_confidence_performance, data.low_confidence_subjects,
+        data.academic_conflict, data.class_attendance, data.weight_change,
+        data.stress_type, data.source
+      ]);
+    }
+
+    return sendResponse(res, true, 'Demo data loaded successfully', {
+      message: `Loaded ${demoData.length} demo records`,
+      count: demoData.length
+    });
+
+  } catch (error) {
+    console.error('Demo data loading error:', error);
+    return sendError(res, 'Error loading demo data', 500, error.message);
   } finally {
     client.release();
   }
