@@ -17,6 +17,8 @@ const corsOptions = {
   origin: [
     'https://tablero-bienestar.vercel.app',
     'https://tablero-de-estrategia-para-el-bienestar-universitari-j0msck5ub.vercel.app',
+    'https://tablero-de-estrategia-para-el-bienestar-universitari-exdif2glg.vercel.app',
+    /^https:\/\/tablero-de-estrategia-para-el-bienestar-universitari-.*\.vercel\.app$/, // Patrón para todos los dominios de Vercel
     'http://localhost:5173', // Para desarrollo local
     'http://localhost:3000'  // Para desarrollo local
   ],
