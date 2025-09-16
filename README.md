@@ -103,7 +103,7 @@ La estructura de la base de datos y los archivos soportados se mantiene como en 
 ## 🤝 Colaboración
 
 - **Base URL (Local):** `http://localhost:3000`
-- **Base URL (Producción):** `https://nodejs-production-42b9.up.railway.app`
+- **Base URL (Producción):** `https://nodejs-production-4a3a.up.railway.app`
 - **Documentación:** `/api-docs`
 - **Endpoints principales:** `/api/upload-dataset`, `/api/stats`, `/api/factores-clave`, `/api/compare/likert-ge4`, `/api/what-if`
 - **Formato de respuesta:** JSON estándar
@@ -120,7 +120,7 @@ Este proyecto es parte del trabajo académico sobre análisis de estrés estudia
 **¡Prueba la aplicación sin instalar nada!**
 
 - **🚀 Aplicación Web:** [Ver Demo en Vivo](https://tablero-bienestar.vercel.app) ✅ **¡FUNCIONANDO!**
-- **📚 API Docs:** [Documentación Interactiva](https://nodejs-production-42b9.up.railway.app/api-docs) ✅ **¡FUNCIONANDO!**
+- **📚 API Docs:** [Documentación Interactiva](https://nodejs-production-4a3a.up.railway.app/api-docs) ✅ **¡FUNCIONANDO!**
 - **📊 Datos de Prueba:** Incluye dataset de demostración con 20+ registros realistas
 
 ### 🎯 Características de la Demo
