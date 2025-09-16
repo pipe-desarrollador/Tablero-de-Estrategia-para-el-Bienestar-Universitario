@@ -14,14 +14,32 @@ const app = express();              // ✅ crear la app aquí
 
 // Configurar CORS para permitir Vercel
 const corsOptions = {
-  origin: [
-    'https://tablero-bienestar.vercel.app',
-    'https://tablero-de-estrategia-para-el-bienestar-universitari-j0msck5ub.vercel.app',
-    'https://tablero-de-estrategia-para-el-bienestar-universitari-exdif2glg.vercel.app',
-    /^https:\/\/tablero-de-estrategia-para-el-bienestar-universitari-.*\.vercel\.app$/, // Patrón para todos los dominios de Vercel
-    'http://localhost:5173', // Para desarrollo local
-    'http://localhost:3000'  // Para desarrollo local
-  ],
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Permitir cualquier dominio de Vercel
+    if (origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Permitir localhost para desarrollo
+    if (origin.includes('localhost')) {
+      return callback(null, true);
+    }
+    
+    // Permitir dominios específicos conocidos
+    const allowedOrigins = [
+      'https://tablero-bienestar.vercel.app'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Rechazar otros orígenes
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
