@@ -11,7 +11,21 @@ const path = require('path');
 
 
 const app = express();              // ✅ crear la app aquí
-app.use(cors());
+
+// Configurar CORS para permitir Vercel
+const corsOptions = {
+  origin: [
+    'https://tablero-bienestar.vercel.app',
+    'https://tablero-de-estrategia-para-el-bienestar-universitari-j0msck5ub.vercel.app',
+    'http://localhost:5173', // Para desarrollo local
+    'http://localhost:3000'  // Para desarrollo local
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
